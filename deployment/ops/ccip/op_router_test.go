@@ -14,6 +14,7 @@ import (
 
 	"github.com/smartcontractkit/chainlink-canton-internal/bindings/ccip/ccvs"
 	"github.com/smartcontractkit/chainlink-canton-internal/bindings/ccip/common"
+	"github.com/smartcontractkit/chainlink-canton-internal/deployment/client"
 	compileClient "github.com/smartcontractkit/chainlink-canton-internal/deployment/client"
 )
 
@@ -73,7 +74,7 @@ func TestRouterOperations(t *testing.T) {
 		t.Parallel()
 
 		// Deploy GlobalConfig
-		commonResult, err := cld_ops.ExecuteOperation(bundle, DeployCCIPCommonOp, deps, DeployCCIPCommonInput{
+		commonResult, err := cld_ops.ExecuteOperation(bundle, DeployCCIPCommonOp, client.CantonOpDepsForGRPC{}, DeployCCIPCommonInput{
 			InstanceID:         instanceID,
 			ChainSelectorValue: chainSelectorValue,
 			OnRampAddress:      onRampAddress,

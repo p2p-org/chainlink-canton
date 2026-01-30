@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	apiv2 "github.com/digital-asset/dazl-client/v8/go/api/com/daml/ledger/api/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/noders-team/go-daml/pkg/client"
 	"github.com/noders-team/go-daml/pkg/model"
@@ -35,6 +36,12 @@ type SetupResult struct {
 // This is defined here to avoid import cycles between testenv and ops packages
 type CantonOpDeps struct {
 	BindingClient *client.DamlBindingClient
+	Party         string
+	UserID        string
+}
+
+type CantonOpDepsForGRPC struct {
+	BindingClient apiv2.CommandServiceClient // TODO CHANGE THIS TO BE GENERAL CLIENT FOR ALL SERVICES IF NEEDED
 	Party         string
 	UserID        string
 }

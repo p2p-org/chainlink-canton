@@ -6,8 +6,10 @@ import (
 	"math/big"
 	"strings"
 
+	apiv2 "github.com/digital-asset/dazl-client/v8/go/api/com/daml/ledger/api/v2"
 	"github.com/noders-team/go-daml/pkg/codec"
 	"github.com/noders-team/go-daml/pkg/model"
+	"github.com/noders-team/go-daml/pkg/service/ledger"
 	. "github.com/noders-team/go-daml/pkg/types"
 )
 
@@ -1812,4 +1814,21 @@ func IICrossChainVerifierInterfaceID(packageID *string) string {
 		pkgID = *packageID
 	}
 	return fmt.Sprintf("#%s:%s:%s", pkgID, "CCIP.Interfaces.CrossChainVerifier", "ICrossChainVerifier")
+}
+
+// ToProtoRecord converts the template payload (arguments) into a raw DAML Ledger API record.
+func (g GlobalConfig) ToProtoRecord() *apiv2.Record {
+	// existing codegen already produces map args via CreateCommand()
+	argsMap := g.CreateCommand().Arguments
+
+	return ledger.ConvertToRecord(argsMap)
+}
+
+// ToProtoValue converts the template payload to a Value_Record (useful if caller expects *Value).
+func (g GlobalConfig) ToProtoValue() *apiv2.Value {
+	rec := g.ToProtoRecord()
+	if rec == nil {
+		return nil
+	}
+	return &apiv2.Value{Sum: &apiv2.Value_Record{Record: rec}}
 }

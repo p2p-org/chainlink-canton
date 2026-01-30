@@ -10,10 +10,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/noders-team/go-daml/pkg/model"
+	"github.com/noders-team/go-daml/pkg/service/ledger"
 	"github.com/noders-team/go-daml/pkg/types"
 
 	cld_ops "github.com/smartcontractkit/chainlink-deployments-framework/operations"
 
+	apiv2 "github.com/digital-asset/dazl-client/v8/go/api/com/daml/ledger/api/v2"
 	"github.com/smartcontractkit/chainlink-canton-internal/bindings/ccip/ccvs"
 	"github.com/smartcontractkit/chainlink-canton-internal/bindings/ccip/common"
 	"github.com/smartcontractkit/chainlink-canton-internal/bindings/ccip/feequoter"
@@ -22,6 +24,7 @@ import (
 	"github.com/smartcontractkit/chainlink-canton-internal/bindings/ccip/perpartyrouter"
 	"github.com/smartcontractkit/chainlink-canton-internal/bindings/ccip/tokenadminregistry"
 	"github.com/smartcontractkit/chainlink-canton-internal/contracts"
+	"github.com/smartcontractkit/chainlink-canton-internal/deployment/client"
 	compileClient "github.com/smartcontractkit/chainlink-canton-internal/deployment/client"
 )
 
@@ -67,25 +70,8 @@ type DeployCCIPCommonOutput struct {
 	GlobalConfigTemplateID string
 }
 
-var deployCCIPCommonHandler = func(b cld_ops.Bundle, deps CantonOpDeps, input DeployCCIPCommonInput) (output CantonOpResult[DeployCCIPCommonOutput], err error) {
+var deployCCIPCommonHandler = func(b cld_ops.Bundle, deps client.CantonOpDepsForGRPC, input DeployCCIPCommonInput) (output CantonOpResult[DeployCCIPCommonOutput], err error) {
 	ctx := b.GetContext()
-
-	// Get and upload CCIP Common package
-	commonDar, err := contracts.GetDar(contracts.CCIPCommon, contracts.CurrentVersion)
-	if err != nil {
-		return CantonOpResult[DeployCCIPCommonOutput]{}, fmt.Errorf("failed to get DAR for package %s: %w", contracts.CCIPCommon, err)
-	}
-
-	submissionID := "validate-" + time.Now().Format("20060102150405")
-	err = deps.BindingClient.PackageMng.ValidateDarFile(ctx, commonDar, submissionID)
-	if err != nil {
-		return CantonOpResult[DeployCCIPCommonOutput]{}, fmt.Errorf("failed to validate DAR file: %w", err)
-	}
-	uploadSubmissionID := "upload-" + time.Now().Format("20060102150405")
-	err = deps.BindingClient.PackageMng.UploadDarFile(ctx, commonDar, uploadSubmissionID)
-	if err != nil {
-		return CantonOpResult[DeployCCIPCommonOutput]{}, fmt.Errorf("failed to upload DAR file: %w", err)
-	}
 
 	// Parse chain selector as integer
 	bi, ok := new(big.Int).SetString(input.ChainSelectorValue, 10)
@@ -101,67 +87,88 @@ var deployCCIPCommonHandler = func(b cld_ops.Bundle, deps CantonOpDeps, input De
 	args := common.GlobalConfig{
 		CcipOwner:          types.PARTY(deps.Party),
 		InstanceId:         types.TEXT(input.InstanceID),
-		ChainSelector:      nil, // ignore the wrapper for this field
+		ChainSelector:      mantissa, // ignore the wrapper for this field
 		OnRampAddress:      types.TEXT(input.OnRampAddress),
 		DestChainConfigs:   types.GENMAP{},
 		SourceChainConfigs: types.GENMAP{},
-	}.CreateCommand().Arguments
-
-	// override to force Numeric 0
-	args["chainSelector"] = mantissa // "1111111111"
+	}
 
 	// Create GlobalConfig contract
 	// Note: We manually construct the command to ensure empty GENMAP fields are included
 	// as DAML requires all non-optional fields to be present
 	commandID := uuid.Must(uuid.NewUUID()).String()
-	createCmd := &model.CreateCommand{
-		TemplateID: fmt.Sprintf("#%s:%s:%s", common.PackageID, "CCIP.GlobalConfig", "GlobalConfig"),
-		Arguments:  args,
-	}
+	// createCmd := &model.CreateCommand{
+	// 	TemplateID: fmt.Sprintf("#%s:%s:%s", common.PackageID, "CCIP.GlobalConfig", "GlobalConfig"),
+	// 	Arguments:  args,
+	// }
 
-	cmds := &model.SubmitAndWaitRequest{
-		Commands: &model.Commands{
-			WorkflowID: "ccip-common-deploy",
-			UserID:     deps.UserID,
-			CommandID:  commandID,
-			ActAs:      []string{deps.Party},
-			Commands:   []*model.Command{{Command: createCmd}},
+	// cmds := &model.SubmitAndWaitRequest{
+	// 	Commands: &model.Commands{
+	// 		WorkflowID: "ccip-common-deploy",
+	// 		UserID:     deps.UserID,
+	// 		CommandID:  commandID,
+	// 		ActAs:      []string{deps.Party},
+	// 		Commands:   []*model.Command{{Command: createCmd}},
+	// 	},
+	// }
+
+	// submitResp, err := deps.BindingClient.CommandService.SubmitAndWaitForTransaction(ctx, cmds)
+	// if err != nil {
+	// 	return CantonOpResult[DeployCCIPCommonOutput]{}, fmt.Errorf("failed to submit GlobalConfig creation: %w", err)
+	// }
+
+	createArgs := ledger.ConvertToRecord(args)
+
+	cmd := &apiv2.Command{
+		Command: &apiv2.Command_Create{
+			Create: &apiv2.CreateCommand{
+				TemplateId:      &apiv2.Identifier{PackageId: "#ccip-common", ModuleName: "CCIP.GlobalConfig", EntityName: "GlobalConfig"},
+				CreateArguments: createArgs,
+			},
 		},
 	}
 
-	submitResp, err := deps.BindingClient.CommandService.SubmitAndWaitForTransaction(ctx, cmds)
+	// Submit via grpc
+
+	submitResp, err := deps.BindingClient.SubmitAndWaitForTransaction(ctx, &apiv2.SubmitAndWaitForTransactionRequest{
+		Commands: &apiv2.Commands{
+			CommandId: commandID,
+			Commands:  []*apiv2.Command{cmd},
+			ActAs:     []string{deps.Party},
+		},
+	})
 	if err != nil {
 		return CantonOpResult[DeployCCIPCommonOutput]{}, fmt.Errorf("failed to submit GlobalConfig creation: %w", err)
 	}
 
 	// Retrieve the contract ID and template ID from the create event
-	globalConfigContractID := ""
-	globalConfigTemplateID := ""
-	for _, event := range submitResp.Transaction.Events {
-		if event.Created == nil {
-			continue
-		}
+	// globalConfigContractID := ""
+	// globalConfigTemplateID := ""
+	// for _, event := range submitResp.Transaction.Events {
+	// 	if event.Created == nil {
+	// 		continue
+	// 	}
 
-		normalizedTemplateID := normalizeTemplateKey(event.Created.TemplateID)
-		if normalizedTemplateID == GlobalConfigTemplateKey {
-			globalConfigContractID = event.Created.ContractID
-			globalConfigTemplateID = event.Created.TemplateID
+	// 	normalizedTemplateID := normalizeTemplateKey(event.Created.TemplateID)
+	// 	if normalizedTemplateID == GlobalConfigTemplateKey {
+	// 		globalConfigContractID = event.Created.ContractID
+	// 		globalConfigTemplateID = event.Created.TemplateID
 
-			break
-		}
-	}
+	// 		break
+	// 	}
+	// }
 
-	if globalConfigContractID == "" {
-		return CantonOpResult[DeployCCIPCommonOutput]{}, fmt.Errorf("failed to find GlobalConfig contract in transaction events")
-	}
+	// if globalConfigContractID == "" {
+	// 	return CantonOpResult[DeployCCIPCommonOutput]{}, fmt.Errorf("failed to find GlobalConfig contract in transaction events")
+	// }
 
-	fmt.Printf("Deployed GlobalConfig contract   id=%s\n", globalConfigContractID)
+	fmt.Printf("Deployed GlobalConfig contract   id=%s\n", submitResp.GetTransaction().GetEvents()[0].GetCreated().GetContractId())
 
 	return CantonOpResult[DeployCCIPCommonOutput]{
 		TransactionID: commandID,
 		Output: DeployCCIPCommonOutput{
-			GlobalConfigContractID: globalConfigContractID,
-			GlobalConfigTemplateID: globalConfigTemplateID,
+			GlobalConfigContractID: "",
+			GlobalConfigTemplateID: "",
 		},
 	}, nil
 }
