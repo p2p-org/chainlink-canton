@@ -22,8 +22,7 @@ CCIP_OUTPUT_DIR="$GEN_DIR/ccip"
 MCMS_OUTPUT_DIR="$GEN_DIR/mcms"
 
 # DARs are exported by: go run ./bindings/compile/cmd/export-dars -out artifacts/dars
-DAR_DIR="$PROJECT_ROOT/contracts/dars"
-
+ 
 # Find godaml
 if command -v godaml >/dev/null 2>&1; then
   GODAML_BIN="godaml"
