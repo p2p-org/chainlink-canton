@@ -33,6 +33,7 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	canton_committee_verifier "github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/committee_verifier"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/per_party_router_factory"
+	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/rmn_remote"
 
 	ccv "github.com/smartcontractkit/chainlink-ccv/build/devenv"
 	"github.com/smartcontractkit/chainlink-ccv/build/devenv/cciptestinterfaces"
@@ -42,15 +43,13 @@ import (
 )
 
 const (
-	createArg1 = "ccipOwner"
-	createArg2 = "partyOwner"
-
-	packageName       = "json-tests"
-	moduleName        = "Main"
-	entityName        = "TestRouter"
-	ccipSendChoice    = "CCIPSend"
-	numMessages       = 3
-	destChainSelector = 1337
+	packageName          = "json-tests"
+	moduleName           = "Main"
+	testRouterEntityName = "TestRouter"
+	rmnRemoteEntityName  = "RMNRemote"
+	ccipSendChoice       = "CCIPSend"
+	numMessages          = 3
+	destChainSelector    = 1337
 )
 
 // version in hex: 0x49ff34ed
@@ -125,6 +124,7 @@ func TestCantonSourceReader(t *testing.T) {
 	require.NotEmpty(t, jwt)
 
 	ts := newTestSetup(participant)
+	addresses := getRelevantAddresses(t, in, cantonDetails, evmDetails)
 
 	ccipMessageSentTemplateID := &ledgerv2.Identifier{
 		PackageId:  "#" + packageName,
@@ -144,6 +144,8 @@ func TestCantonSourceReader(t *testing.T) {
 	ccipOwner, partyOwner := party, party
 	createResp := ts.createTestRouter(t, ccipOwner, partyOwner)
 	require.NotNil(t, createResp)
+	createRMNRemoteResp := ts.createRMNRemote(t, ccipOwner, addresses.cantonRMNRemote.Hex(), []protocol.Bytes16{})
+	require.NotNil(t, createRMNRemoteResp)
 
 	sourceReader, err := sourcereader.NewSourceReader(
 		logger.Test(t),
@@ -178,7 +180,6 @@ func TestCantonSourceReader(t *testing.T) {
 	contractID := ts.getContractID(t, createResp.GetUpdateId(), party)
 	messages := make([]protocol.Message, numMessages)
 
-	addresses := getRelevantAddresses(t, in, cantonDetails, evmDetails)
 	for i := range numMessages {
 		msg := newMessage(
 			t,
@@ -304,13 +305,17 @@ func TestCantonSourceReader(t *testing.T) {
 
 // relevantAddresses are the addresses required to construct a valid CCIP message from Canton -> EVM.
 type relevantAddresses struct {
+	// Canton contracts
 	cantonOnRamp                contracts.InstanceAddress
 	cantonExecutor              contracts.InstanceAddress
 	cantonDefaultVerifier       contracts.InstanceAddress
 	cantonPerPartyRouterFactory contracts.InstanceAddress
 	cantonRouter                contracts.InstanceAddress
-	evmOffRamp                  common.Address
-	evmReceiver                 common.Address
+	cantonRMNRemote             contracts.InstanceAddress
+
+	// EVM contracts
+	evmOffRamp  common.Address
+	evmReceiver common.Address
 }
 
 // getRelevantAddresses returns the canton and evm addresses required to construct a valid CCIP message from Canton -> EVM.
@@ -407,6 +412,19 @@ func getRelevantAddresses(t *testing.T, in *ccv.Cfg, cantonDetails, evmDetails c
 	require.NotEmpty(t, evmReceiverRef.Address)
 	t.Logf("evm receiver address: %s", evmReceiverRef.Address)
 	addresses.evmReceiver = common.HexToAddress(evmReceiverRef.Address)
+
+	rmnRemoteRef, err := in.CLDF.DataStore.Addresses().Get(
+		datastore.NewAddressRefKey(
+			cantonDetails.ChainSelector,
+			datastore.ContractType(rmn_remote.ContractType),
+			rmn_remote.Version,
+			"",
+		),
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, rmnRemoteRef.Address)
+	t.Logf("canton rmn remote address: %s", rmnRemoteRef.Address)
+	addresses.cantonRMNRemote = contracts.HexToInstanceAddress(rmnRemoteRef.Address)
 
 	return addresses
 }
@@ -571,7 +589,7 @@ func (ts *testSetup) ccipSend(
 							TemplateId: &ledgerv2.Identifier{
 								PackageId:  "#" + packageName,
 								ModuleName: moduleName,
-								EntityName: entityName,
+								EntityName: testRouterEntityName,
 							},
 							ContractId: contractID,
 							Choice:     ccipSendChoice,
@@ -646,7 +664,22 @@ func (ts *testSetup) ccipSend(
 	return resp
 }
 
-func (ts *testSetup) createTestRouter(t *testing.T, ccipOwnerParty, partyOwnerParty string) *ledgerv2.SubmitAndWaitResponse {
+func (ts *testSetup) createRMNRemote(t *testing.T, ccipOwnerParty string, rmnRemoteInstanceID string, cursedSubjects []protocol.Bytes16) *ledgerv2.SubmitAndWaitResponse {
+	const (
+		createArg1 = "instanceId"
+		createArg2 = "rmnOwner"
+		createArg3 = "ccipOwner"
+		createArg4 = "cursedSubjects"
+	)
+	cursedSubjectsElements := make([]*ledgerv2.Value, len(cursedSubjects))
+	for i, subject := range cursedSubjects {
+		cursedSubjectsElements[i] = &ledgerv2.Value{
+			Sum: &ledgerv2.Value_Text{
+				Text: hex.EncodeToString(subject[:]),
+			},
+		}
+	}
+
 	resp, err := ts.participant.LedgerServices.Command.SubmitAndWait(t.Context(), &ledgerv2.SubmitAndWaitRequest{
 		Commands: &ledgerv2.Commands{
 			CommandId: uuid.New().String(),
@@ -660,7 +693,76 @@ func (ts *testSetup) createTestRouter(t *testing.T, ccipOwnerParty, partyOwnerPa
 							TemplateId: &ledgerv2.Identifier{
 								PackageId:  "#" + packageName,
 								ModuleName: moduleName,
-								EntityName: entityName,
+								EntityName: rmnRemoteEntityName,
+							},
+							CreateArguments: &ledgerv2.Record{
+								Fields: []*ledgerv2.RecordField{
+									{
+										Label: createArg1,
+										Value: &ledgerv2.Value{
+											Sum: &ledgerv2.Value_Text{
+												Text: rmnRemoteInstanceID,
+											},
+										},
+									},
+									{
+										Label: createArg2,
+										Value: &ledgerv2.Value{
+											Sum: &ledgerv2.Value_Party{
+												Party: ccipOwnerParty,
+											},
+										},
+									},
+									{
+										Label: createArg3,
+										Value: &ledgerv2.Value{
+											Sum: &ledgerv2.Value_Party{
+												Party: ccipOwnerParty,
+											},
+										},
+									},
+									{
+										Label: createArg4,
+										Value: &ledgerv2.Value{
+											Sum: &ledgerv2.Value_List{
+												List: &ledgerv2.List{
+													Elements: cursedSubjectsElements,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	return resp
+}
+
+func (ts *testSetup) createTestRouter(t *testing.T, ccipOwnerParty, partyOwnerParty string) *ledgerv2.SubmitAndWaitResponse {
+	const (
+		createArg1 = "ccipOwner"
+		createArg2 = "partyOwner"
+	)
+	resp, err := ts.participant.LedgerServices.Command.SubmitAndWait(t.Context(), &ledgerv2.SubmitAndWaitRequest{
+		Commands: &ledgerv2.Commands{
+			CommandId: uuid.New().String(),
+			UserId:    ts.participant.UserID,
+			ActAs:     []string{ccipOwnerParty},
+			ReadAs:    []string{ccipOwnerParty},
+			Commands: []*ledgerv2.Command{
+				{
+					Command: &ledgerv2.Command_Create{
+						Create: &ledgerv2.CreateCommand{
+							TemplateId: &ledgerv2.Identifier{
+								PackageId:  "#" + packageName,
+								ModuleName: moduleName,
+								EntityName: testRouterEntityName,
 							},
 							CreateArguments: &ledgerv2.Record{
 								Fields: []*ledgerv2.RecordField{

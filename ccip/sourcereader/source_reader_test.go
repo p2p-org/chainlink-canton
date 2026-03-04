@@ -896,6 +896,412 @@ func TestSourceReader_FetchMessageSentEvents(t *testing.T) {
 	})
 }
 
+func TestProcessRMNRemoteCreatedEvent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns cursed subjects from hex list with 0x prefix", func(t *testing.T) {
+		t.Parallel()
+		subject1, err := protocol.NewBytes16FromString("0x0102030405060708090a0b0c0d0e0f10")
+		require.NoError(t, err)
+		createdEvent := &ledgerv2.CreatedEvent{
+			CreateArguments: &ledgerv2.Record{
+				Fields: []*ledgerv2.RecordField{
+					{
+						Label: rmnRemoteCursedSubjectsLabel,
+						Value: &ledgerv2.Value{
+							Sum: &ledgerv2.Value_List{
+								List: &ledgerv2.List{
+									Elements: []*ledgerv2.Value{
+										{Sum: &ledgerv2.Value_Text{Text: "0x0102030405060708090a0b0c0d0e0f10"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		got, err := processRMNRemoteCreatedEvent(createdEvent)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, subject1, got[0])
+	})
+
+	t.Run("adds 0x prefix when subject hex has no prefix", func(t *testing.T) {
+		t.Parallel()
+		subject1, err := protocol.NewBytes16FromString("0x0102030405060708090a0b0c0d0e0f10")
+		require.NoError(t, err)
+		createdEvent := &ledgerv2.CreatedEvent{
+			CreateArguments: &ledgerv2.Record{
+				Fields: []*ledgerv2.RecordField{
+					{
+						Label: rmnRemoteCursedSubjectsLabel,
+						Value: &ledgerv2.Value{
+							Sum: &ledgerv2.Value_List{
+								List: &ledgerv2.List{
+									Elements: []*ledgerv2.Value{
+										{Sum: &ledgerv2.Value_Text{Text: "0102030405060708090a0b0c0d0e0f10"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		got, err := processRMNRemoteCreatedEvent(createdEvent)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, subject1, got[0])
+	})
+
+	t.Run("returns multiple cursed subjects", func(t *testing.T) {
+		t.Parallel()
+		subject1, err := protocol.NewBytes16FromString("0x0102030405060708090a0b0c0d0e0f10")
+		require.NoError(t, err)
+		// Bytes16: max 34 chars total ("0x" + 32 hex chars)
+		subject2, err := protocol.NewBytes16FromString("0xe02030405060708090a0b0c0d0e0f010")
+		require.NoError(t, err)
+		createdEvent := &ledgerv2.CreatedEvent{
+			CreateArguments: &ledgerv2.Record{
+				Fields: []*ledgerv2.RecordField{
+					{
+						Label: rmnRemoteCursedSubjectsLabel,
+						Value: &ledgerv2.Value{
+							Sum: &ledgerv2.Value_List{
+								List: &ledgerv2.List{
+									Elements: []*ledgerv2.Value{
+										{Sum: &ledgerv2.Value_Text{Text: "0x0102030405060708090a0b0c0d0e0f10"}},
+										{Sum: &ledgerv2.Value_Text{Text: "0xe02030405060708090a0b0c0d0e0f010"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		got, err := processRMNRemoteCreatedEvent(createdEvent)
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+		require.Equal(t, subject1, got[0])
+		require.Equal(t, subject2, got[1])
+	})
+
+	t.Run("returns empty list when cursedSubjects is empty", func(t *testing.T) {
+		t.Parallel()
+		createdEvent := &ledgerv2.CreatedEvent{
+			CreateArguments: &ledgerv2.Record{
+				Fields: []*ledgerv2.RecordField{
+					{
+						Label: rmnRemoteCursedSubjectsLabel,
+						Value: &ledgerv2.Value{
+							Sum: &ledgerv2.Value_List{
+								List: &ledgerv2.List{Elements: []*ledgerv2.Value{}},
+							},
+						},
+					},
+				},
+			},
+		}
+		got, err := processRMNRemoteCreatedEvent(createdEvent)
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+
+	t.Run("ignores known non-cursedSubjects fields", func(t *testing.T) {
+		t.Parallel()
+		createdEvent := &ledgerv2.CreatedEvent{
+			CreateArguments: &ledgerv2.Record{
+				Fields: []*ledgerv2.RecordField{
+					{Label: rmnRemoteInstanceIdLabel, Value: &ledgerv2.Value{Sum: &ledgerv2.Value_Text{Text: "inst"}}},
+					{Label: rmnRemoteRmnOwnerLabel, Value: &ledgerv2.Value{Sum: &ledgerv2.Value_Party{Party: "rmn-owner"}}},
+					{Label: rmnRemoteCcipOwnerLabel, Value: &ledgerv2.Value{Sum: &ledgerv2.Value_Party{Party: "ccip-owner"}}},
+					{
+						Label: rmnRemoteCursedSubjectsLabel,
+						Value: &ledgerv2.Value{
+							Sum: &ledgerv2.Value_List{
+								List: &ledgerv2.List{Elements: []*ledgerv2.Value{}},
+							},
+						},
+					},
+				},
+			},
+		}
+		got, err := processRMNRemoteCreatedEvent(createdEvent)
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+
+	t.Run("returns error on unknown field", func(t *testing.T) {
+		t.Parallel()
+		createdEvent := &ledgerv2.CreatedEvent{
+			CreateArguments: &ledgerv2.Record{
+				Fields: []*ledgerv2.RecordField{
+					{Label: "unknownField", Value: &ledgerv2.Value{Sum: &ledgerv2.Value_Text{Text: "x"}}},
+				},
+			},
+		}
+		_, err := processRMNRemoteCreatedEvent(createdEvent)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unknown field on RMNRemote created event")
+		require.ErrorContains(t, err, "unknownField")
+	})
+
+	t.Run("returns error when subject hex is invalid", func(t *testing.T) {
+		t.Parallel()
+		createdEvent := &ledgerv2.CreatedEvent{
+			CreateArguments: &ledgerv2.Record{
+				Fields: []*ledgerv2.RecordField{
+					{
+						Label: rmnRemoteCursedSubjectsLabel,
+						Value: &ledgerv2.Value{
+							Sum: &ledgerv2.Value_List{
+								List: &ledgerv2.List{
+									Elements: []*ledgerv2.Value{
+										{Sum: &ledgerv2.Value_Text{Text: "not-valid-hex"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		_, err := processRMNRemoteCreatedEvent(createdEvent)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to decode subject from BytesHex")
+	})
+}
+
+func TestSourceReader_GetRMNCursedSubjects(t *testing.T) {
+	t.Parallel()
+	const ccipOwner = "ccip-owner-party"
+	rmnTemplateID := contracts.TemplateID{
+		PackageID:  "rmn-pkg",
+		ModuleName: "CCIP",
+		EntityName: "RMNRemote",
+	}
+
+	t.Run("returns cursed subjects when active contract stream returns RMNRemote", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		offset := int64(100)
+		subject1, err := protocol.NewBytes16FromString("0x0102030405060708090a0b0c0d0e0f10")
+		require.NoError(t, err)
+
+		createdEvent := &ledgerv2.CreatedEvent{
+			CreateArguments: &ledgerv2.Record{
+				Fields: []*ledgerv2.RecordField{
+					{
+						Label: rmnRemoteCursedSubjectsLabel,
+						Value: &ledgerv2.Value{
+							Sum: &ledgerv2.Value_List{
+								List: &ledgerv2.List{
+									Elements: []*ledgerv2.Value{
+										{Sum: &ledgerv2.Value_Text{Text: "0x0102030405060708090a0b0c0d0e0f10"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		stateClient := mocks.NewMockStateServiceClient(t)
+		stateClient.EXPECT().GetLedgerEnd(mock.Anything, mock.Anything).
+			Return(&ledgerv2.GetLedgerEndResponse{Offset: offset}, nil)
+		activeContractsStream := &fakeActiveContractsStream{
+			ctx: ctx,
+			responses: []*ledgerv2.GetActiveContractsResponse{
+				{
+					ContractEntry: &ledgerv2.GetActiveContractsResponse_ActiveContract{
+						ActiveContract: &ledgerv2.ActiveContract{
+							CreatedEvent: createdEvent,
+						},
+					},
+				},
+			},
+		}
+		stateClient.EXPECT().GetActiveContracts(mock.Anything, mock.Anything).
+			Return(activeContractsStream, nil)
+
+		reader := &sourceReader{
+			stateServiceClient: stateClient,
+			jwt:                "token",
+			config: ReaderConfig{
+				CCIPOwnerParty:   ccipOwner,
+				RMNRemoteTemplateID: rmnTemplateID,
+			},
+		}
+
+		got, err := reader.GetRMNCursedSubjects(ctx)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, subject1, got[0])
+	})
+
+	t.Run("surfaces error when GetLedgerEnd fails", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		stateClient := mocks.NewMockStateServiceClient(t)
+		expectedErr := errors.New("ledger end failed")
+		stateClient.EXPECT().GetLedgerEnd(mock.Anything, mock.Anything).
+			Return((*ledgerv2.GetLedgerEndResponse)(nil), expectedErr)
+
+		reader := &sourceReader{
+			stateServiceClient: stateClient,
+			jwt:                "token",
+			config: ReaderConfig{
+				CCIPOwnerParty:      ccipOwner,
+				RMNRemoteTemplateID: rmnTemplateID,
+			},
+		}
+
+		_, err := reader.GetRMNCursedSubjects(ctx)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to get latest block")
+	})
+
+	t.Run("surfaces error when GetActiveContracts fails", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		offset := int64(42)
+		stateClient := mocks.NewMockStateServiceClient(t)
+		stateClient.EXPECT().GetLedgerEnd(mock.Anything, mock.Anything).
+			Return(&ledgerv2.GetLedgerEndResponse{Offset: offset}, nil)
+		expectedErr := errors.New("get active contracts failed")
+		stateClient.EXPECT().GetActiveContracts(mock.Anything, mock.Anything).
+			Return(nil, expectedErr)
+
+		reader := &sourceReader{
+			stateServiceClient: stateClient,
+			jwt:                "token",
+			config: ReaderConfig{
+				CCIPOwnerParty:      ccipOwner,
+				RMNRemoteTemplateID: rmnTemplateID,
+			},
+		}
+
+		_, err := reader.GetRMNCursedSubjects(ctx)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to get active contracts")
+	})
+
+	t.Run("surfaces error when stream Recv fails", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		offset := int64(42)
+		stateClient := mocks.NewMockStateServiceClient(t)
+		stateClient.EXPECT().GetLedgerEnd(mock.Anything, mock.Anything).
+			Return(&ledgerv2.GetLedgerEndResponse{Offset: offset}, nil)
+		activeContractsStream := &fakeActiveContractsStream{
+			ctx: ctx,
+			err: errors.New("recv failed"),
+		}
+		stateClient.EXPECT().GetActiveContracts(mock.Anything, mock.Anything).
+			Return(activeContractsStream, nil)
+
+		reader := &sourceReader{
+			stateServiceClient: stateClient,
+			jwt:                "token",
+			config: ReaderConfig{
+				CCIPOwnerParty:      ccipOwner,
+				RMNRemoteTemplateID: rmnTemplateID,
+			},
+		}
+
+		_, err := reader.GetRMNCursedSubjects(ctx)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to receive active contract")
+	})
+
+	t.Run("returns error when no active RMNRemote found", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		offset := int64(42)
+		stateClient := mocks.NewMockStateServiceClient(t)
+		stateClient.EXPECT().GetLedgerEnd(mock.Anything, mock.Anything).
+			Return(&ledgerv2.GetLedgerEndResponse{Offset: offset}, nil)
+		activeContractsStream := &fakeActiveContractsStream{
+			ctx:       ctx,
+			responses: []*ledgerv2.GetActiveContractsResponse{}, // EOF without any ActiveContract
+		}
+		stateClient.EXPECT().GetActiveContracts(mock.Anything, mock.Anything).
+			Return(activeContractsStream, nil)
+
+		reader := &sourceReader{
+			stateServiceClient: stateClient,
+			jwt:                "token",
+			config: ReaderConfig{
+				CCIPOwnerParty:      ccipOwner,
+				RMNRemoteTemplateID: rmnTemplateID,
+			},
+		}
+
+		_, err := reader.GetRMNCursedSubjects(ctx)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "no active RMNRemote found")
+		require.ErrorContains(t, err, "42")
+	})
+
+	t.Run("surfaces error when processRMNRemoteCreatedEvent fails", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		offset := int64(42)
+		createdEvent := &ledgerv2.CreatedEvent{
+			CreateArguments: &ledgerv2.Record{
+				Fields: []*ledgerv2.RecordField{
+					{
+						Label: rmnRemoteCursedSubjectsLabel,
+						Value: &ledgerv2.Value{
+							Sum: &ledgerv2.Value_List{
+								List: &ledgerv2.List{
+									Elements: []*ledgerv2.Value{
+										{Sum: &ledgerv2.Value_Text{Text: "invalid-hex"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		stateClient := mocks.NewMockStateServiceClient(t)
+		stateClient.EXPECT().GetLedgerEnd(mock.Anything, mock.Anything).
+			Return(&ledgerv2.GetLedgerEndResponse{Offset: offset}, nil)
+		activeContractsStream := &fakeActiveContractsStream{
+			ctx: ctx,
+			responses: []*ledgerv2.GetActiveContractsResponse{
+				{
+					ContractEntry: &ledgerv2.GetActiveContractsResponse_ActiveContract{
+						ActiveContract: &ledgerv2.ActiveContract{
+							CreatedEvent: createdEvent,
+						},
+					},
+				},
+			},
+		}
+		stateClient.EXPECT().GetActiveContracts(mock.Anything, mock.Anything).
+			Return(activeContractsStream, nil)
+
+		reader := &sourceReader{
+			stateServiceClient: stateClient,
+			jwt:                "token",
+			config: ReaderConfig{
+				CCIPOwnerParty:      ccipOwner,
+				RMNRemoteTemplateID: rmnTemplateID,
+			},
+		}
+
+		_, err := reader.GetRMNCursedSubjects(ctx)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to process RMNRemote created event")
+	})
+}
+
 type fakeUpdateStream struct {
 	ctx       context.Context //nolint:containedctx
 	responses []*ledgerv2.GetUpdatesResponse
@@ -946,3 +1352,54 @@ func (s *fakeUpdateStream) RecvMsg(any) error {
 }
 
 var _ grpc.ServerStreamingClient[ledgerv2.GetUpdatesResponse] = (*fakeUpdateStream)(nil)
+
+type fakeActiveContractsStream struct {
+	ctx       context.Context //nolint:containedctx
+	responses []*ledgerv2.GetActiveContractsResponse
+	err       error
+	idx       int
+}
+
+func (s *fakeActiveContractsStream) Recv() (*ledgerv2.GetActiveContractsResponse, error) {
+	if s.idx < len(s.responses) {
+		resp := s.responses[s.idx]
+		s.idx++
+
+		return resp, nil
+	}
+	if s.err != nil {
+		return nil, s.err
+	}
+
+	return nil, io.EOF
+}
+
+func (s *fakeActiveContractsStream) Header() (metadata.MD, error) {
+	return metadata.MD{}, nil
+}
+
+func (s *fakeActiveContractsStream) Trailer() metadata.MD {
+	return metadata.MD{}
+}
+
+func (s *fakeActiveContractsStream) CloseSend() error {
+	return nil
+}
+
+func (s *fakeActiveContractsStream) Context() context.Context {
+	if s.ctx != nil {
+		return s.ctx
+	}
+
+	return context.Background()
+}
+
+func (s *fakeActiveContractsStream) SendMsg(any) error {
+	return nil
+}
+
+func (s *fakeActiveContractsStream) RecvMsg(any) error {
+	return nil
+}
+
+var _ grpc.ServerStreamingClient[ledgerv2.GetActiveContractsResponse] = (*fakeActiveContractsStream)(nil)

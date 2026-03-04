@@ -3,6 +3,17 @@ module Main where
 import DA.Crypto.Text (BytesHex, byteCount)
 import DA.Text qualified as Text
 
+-- Stripped down version of the real RMNRemote, just for testing purposes.
+template RMNRemote
+    with
+        instanceId : Text
+        rmnOwner : Party
+        ccipOwner : Party
+        cursedSubjects : [BytesHex]
+    where
+        signatory rmnOwner
+        observer ccipOwner
+
 template TestRouter
   with
     ccipOwner : Party

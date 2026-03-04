@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/big"
 	"slices"
+	"strings"
 
 	ledgerv2 "github.com/digital-asset/dazl-client/v8/go/api/com/daml/ledger/api/v2"
 	"google.golang.org/grpc"
@@ -41,6 +42,12 @@ const (
 	ccipMessageSentEventReceiptDestBytesOverheadLabel = "destBytesOverhead"
 	ccipMessageSentEventReceiptFeeTokenAmountLabel    = "feeTokenAmount"
 	ccipMessageSentEventReceiptExtraArgsLabel         = "extraArgs"
+
+	// labels for the RMNRemote template.
+	rmnRemoteInstanceIdLabel     = "instanceId"
+	rmnRemoteRmnOwnerLabel       = "rmnOwner"
+	rmnRemoteCcipOwnerLabel      = "ccipOwner"
+	rmnRemoteCursedSubjectsLabel = "cursedSubjects"
 )
 
 // ReaderConfig is the configuration required to create a canton source reader.
@@ -464,8 +471,96 @@ func (c *sourceReader) GetBlocksHeaders(ctx context.Context, blockNumbers []*big
 
 // GetRMNCursedSubjects implements chainaccess.SourceReader.
 func (c *sourceReader) GetRMNCursedSubjects(ctx context.Context) ([]protocol.Bytes16, error) {
-	// TODO: implement this.
-	return nil, nil
+	latest, _, err := c.LatestAndFinalizedBlock(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest block: %w", err)
+	}
+	if latest == nil {
+		return nil, fmt.Errorf("latest block is nil")
+	}
+
+	rmnRemoteTemplateID, err := c.config.GetRMNRemoteTemplateID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get RMNRemote template ID: %w", err)
+	}
+
+	updates, err := c.stateServiceClient.GetActiveContracts(c.authCtx(ctx), &ledgerv2.GetActiveContractsRequest{
+		ActiveAtOffset: int64(latest.Number), //nolint:gosec // offset is always non-negative
+		EventFormat: &ledgerv2.EventFormat{
+			FiltersByParty: map[string]*ledgerv2.Filters{
+				// TODO: figure out if this is right, currently only ccipOwner is an observer on the RMNRemote contract.
+				c.config.CCIPOwnerParty: {
+					Cumulative: []*ledgerv2.CumulativeFilter{
+						{
+							IdentifierFilter: &ledgerv2.CumulativeFilter_TemplateFilter{TemplateFilter: &ledgerv2.TemplateFilter{
+								TemplateId:              rmnRemoteTemplateID,
+								IncludeCreatedEventBlob: true,
+							}},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active contracts: %w", err)
+	}
+	defer updates.CloseSend()
+
+	for {
+		activeContract, err := updates.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("failed to receive active contract: %w", err)
+		}
+		if c, ok := activeContract.GetContractEntry().(*ledgerv2.GetActiveContractsResponse_ActiveContract); ok {
+			// TODO: should we check that the instance address is the one we expect?
+			// Get the subjects from the created event blob.
+			createdEvent := c.ActiveContract.GetCreatedEvent()
+			if createdEvent == nil {
+				continue
+			}
+			cursedSubjects, err := processRMNRemoteCreatedEvent(createdEvent)
+			if err != nil {
+				return nil, fmt.Errorf("failed to process RMNRemote created event: %w", err)
+			}
+			// there shouldn't be more than one active RMNRemote at a given offset, so we can return after the first one.
+			return cursedSubjects, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no active RMNRemote found at offset %d", latest.Number)
+}
+
+func processRMNRemoteCreatedEvent(createdEvent *ledgerv2.CreatedEvent) ([]protocol.Bytes16, error) {
+	// TODO: should we check that the instance address is the one we expect?
+	// Get the subjects from the created event blob.
+	cursedSubjects := make([]protocol.Bytes16, 0)
+	for _, field := range createdEvent.GetCreateArguments().GetFields() {
+		switch field.GetLabel() {
+		case rmnRemoteInstanceIdLabel, rmnRemoteRmnOwnerLabel, rmnRemoteCcipOwnerLabel:
+			continue // known fields, ignore
+		case rmnRemoteCursedSubjectsLabel:
+			// this is of type [BytesHex]
+			for _, subject := range field.GetValue().GetList().GetElements() {
+				subjectHex := subject.GetText()
+				if !strings.HasPrefix(subjectHex, "0x") {
+					subjectHex = "0x" + subjectHex
+				}
+				subjectBytes16, err := protocol.NewBytes16FromString(subjectHex)
+				if err != nil {
+					return nil, fmt.Errorf("failed to decode subject from BytesHex: %w, input: %s", err, subjectHex)
+				}
+				cursedSubjects = append(cursedSubjects, subjectBytes16)
+			}
+		default:
+			return nil, fmt.Errorf("unknown field on RMNRemote created event: %s", field.GetLabel())
+		}
+	}
+
+	return cursedSubjects, nil
 }
 
 // LatestAndFinalizedBlock returns the latest offset of the canton validator we are connected to.
