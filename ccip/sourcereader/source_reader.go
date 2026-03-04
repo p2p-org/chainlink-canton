@@ -9,12 +9,12 @@ import (
 	"io"
 	"math/big"
 	"slices"
-	"strings"
 
 	ledgerv2 "github.com/digital-asset/dazl-client/v8/go/api/com/daml/ledger/api/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-ccv/pkg/chainaccess"
 	"github.com/smartcontractkit/chainlink-ccv/protocol"
 	"github.com/smartcontractkit/chainlink-common/pkg/logger"
@@ -48,29 +48,41 @@ type ReaderConfig struct {
 	// NodeOperatorParty is the observer party that node operators will use to observe CCIPMessageSent events.
 	// This is used to filter out events that are not observed by the node operator.
 	NodeOperatorParty string `toml:"node_operator_party"`
+
 	// CCIPOwnerParty is the party that we expect to be present in the CCIPMessageSent.ccipOwner field.
 	// This proves that the ccipOwner is a signatory on the CCIPMessageSent contract(event).
 	CCIPOwnerParty string `toml:"ccip_owner_party"`
+
 	// CCIPMessageSentTemplateID is the template ID of the CCIPMessageSent contract.
 	// Formatted as packageId:moduleName:entityName
-	CCIPMessageSentTemplateID string `toml:"ccip_message_sent_template_id"`
+	CCIPMessageSentTemplateID contracts.TemplateID `toml:"ccip_message_sent_template_id"`
+
+	// RMNRemoteTemplateID is the template ID of the RMNRemote contract.
+	// Formatted as packageId:moduleName:entityName
+	RMNRemoteTemplateID contracts.TemplateID `toml:"rmn_remote_template_id"`
+
 	// Authority is the authority to use for the gRPC connection.
 	// Connecting to the gRPC API via nginx usually requires this to be set.
 	Authority string `toml:"authority"`
 }
 
-// GetTemplateID returns a ledgerv2.Identifier from the CCIPMessageSentTemplateID.
+// GetCCIPMessageSentTemplateID returns a ledgerv2.Identifier from the CCIPMessageSentTemplateID.
 // It expects the format to be packageId:moduleName:entityName.
-func (c *ReaderConfig) GetTemplateID() (*ledgerv2.Identifier, error) {
-	parts := strings.Split(c.CCIPMessageSentTemplateID, ":")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid template ID format, expected packageId:moduleName:entityName, got: %s", c.CCIPMessageSentTemplateID)
-	}
-
+func (c *ReaderConfig) GetCCIPMessageSentTemplateID() (*ledgerv2.Identifier, error) {
 	return &ledgerv2.Identifier{
-		PackageId:  parts[0],
-		ModuleName: parts[1],
-		EntityName: parts[2],
+		PackageId:  c.CCIPMessageSentTemplateID.PackageID,
+		ModuleName: c.CCIPMessageSentTemplateID.ModuleName,
+		EntityName: c.CCIPMessageSentTemplateID.EntityName,
+	}, nil
+}
+
+// GetRMNRemoteTemplateID returns a ledgerv2.Identifier from the RMNRemoteTemplateID.
+// It expects the format to be packageId:moduleName:entityName.
+func (c *ReaderConfig) GetRMNRemoteTemplateID() (*ledgerv2.Identifier, error) {
+	return &ledgerv2.Identifier{
+		PackageId:  c.RMNRemoteTemplateID.PackageID,
+		ModuleName: c.RMNRemoteTemplateID.ModuleName,
+		EntityName: c.RMNRemoteTemplateID.EntityName,
 	}, nil
 }
 
@@ -112,7 +124,7 @@ func NewSourceReader(
 
 // FetchMessageSentEvents implements chainaccess.SourceReader.
 func (c *sourceReader) FetchMessageSentEvents(ctx context.Context, fromBlock, toBlock *big.Int) ([]protocol.MessageSentEvent, error) {
-	templateID, err := c.config.GetTemplateID()
+	templateID, err := c.config.GetCCIPMessageSentTemplateID()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get template ID: %w", err)
 	}

@@ -131,7 +131,13 @@ func TestCantonSourceReader(t *testing.T) {
 		ModuleName: "Main",
 		EntityName: "CCIPMessageSent",
 	}
+	rmnRemoteTemplateID := &ledgerv2.Identifier{
+		PackageId:  "#" + packageName,
+		ModuleName: "Main",
+		EntityName: "RMNRemote",
+	}
 	t.Logf("ccipMessageSentTemplateID being used: %s", ccipMessageSentTemplateID.String())
+	t.Logf("rmnRemoteTemplateID being used: %s", rmnRemoteTemplateID.String())
 
 	// Deploy the TestRouter contract.
 	// TODO: ideally ccipOwner and partyOwner are separate parties, but we need to figure out the auth for that.
@@ -144,9 +150,18 @@ func TestCantonSourceReader(t *testing.T) {
 		grpcURL,
 		jwt,
 		sourcereader.ReaderConfig{
-			NodeOperatorParty:         party,
-			CCIPOwnerParty:            ccipOwner,
-			CCIPMessageSentTemplateID: fmt.Sprintf("%s:%s:%s", ccipMessageSentTemplateID.PackageId, ccipMessageSentTemplateID.ModuleName, ccipMessageSentTemplateID.EntityName),
+			NodeOperatorParty: party,
+			CCIPOwnerParty:    ccipOwner,
+			CCIPMessageSentTemplateID: contracts.TemplateID{
+				PackageID:  ccipMessageSentTemplateID.PackageId,
+				ModuleName: ccipMessageSentTemplateID.ModuleName,
+				EntityName: ccipMessageSentTemplateID.EntityName,
+			},
+			RMNRemoteTemplateID: contracts.TemplateID{
+				PackageID:  rmnRemoteTemplateID.PackageId,
+				ModuleName: rmnRemoteTemplateID.ModuleName,
+				EntityName: rmnRemoteTemplateID.EntityName,
+			},
 		},
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
