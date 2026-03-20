@@ -23,7 +23,7 @@ type packageDaml struct {
 func main() {
 	ctx := context.Background()
 
-	artifactsDir := flag.String("artifacts", "dar", "Path to the artifacts directory")
+	artifactsDir := flag.String("artifacts", "dars", "Path to the artifacts directory")
 	rootDir := flag.String("root", "", "Path to the contracts root directory, must contain multi-package.yaml file, defaults to current working directory")
 	flag.Parse()
 
