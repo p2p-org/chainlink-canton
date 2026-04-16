@@ -5,6 +5,7 @@ import (
 	chainsel "github.com/smartcontractkit/chain-selectors"
 	"github.com/smartcontractkit/chainlink-ccip/deployment/lanes"
 	tokenscore "github.com/smartcontractkit/chainlink-ccip/deployment/tokens"
+	ccipchangesets "github.com/smartcontractkit/chainlink-ccip/deployment/utils/changesets"
 	ccipadapters "github.com/smartcontractkit/chainlink-ccip/deployment/v2_0_0/adapters"
 )
 
@@ -16,6 +17,7 @@ var tokenPoolVersions = []string{
 func init() {
 	ccipadapters.GetDeployChainContractsRegistry().Register(chainsel.FamilyCanton, &CantonDeployChainContractsAdapter{})
 	ccipadapters.GetChainFamilyRegistry().RegisterChainFamily(chainsel.FamilyCanton, &CantonChainFamilyAdapter{})
+	ccipchangesets.GetRegistry().RegisterMCMSReader(chainsel.FamilyCanton, &CantonMCMSReader{})
 	lanes.GetLaneAdapterRegistry().RegisterLaneAdapter(chainsel.FamilyCanton, semver.MustParse("2.0.0"), CantonLaneAdapter{})
 	ccipadapters.GetCommitteeVerifierContractRegistry().Register(chainsel.FamilyCanton, &CantonCommitteeVerifierContractAdapter{})
 	ccipadapters.GetAggregatorConfigRegistry().Register(chainsel.FamilyCanton, &CantonAggregatorConfigAdapter{})

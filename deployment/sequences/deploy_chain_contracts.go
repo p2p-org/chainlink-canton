@@ -71,6 +71,9 @@ type DeployChainContractsParams struct {
 	GlobalConfig       GlobalConfigParams
 	RMNRemote          RMNRemoteParams
 	FeeQuoterConfig    FeeQuoterParams
+	// ProposalDriven emits MCMS batch operations for deploy-time exercises instead
+	// of executing them immediately on-chain.
+	ProposalDriven bool
 	// The InstrumentId of the native token
 	NativeInstrumentId splice_api_token_holding_v1.InstrumentId
 }

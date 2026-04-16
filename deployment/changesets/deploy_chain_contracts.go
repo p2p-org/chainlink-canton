@@ -19,6 +19,10 @@ var _ cldf.ChangeSetV2[CantonCSDeps[DeployChainContractsConfig]] = DeployChainCo
 type DeployChainContracts struct{}
 
 func (d DeployChainContracts) VerifyPreconditions(e cldf.Environment, config CantonCSDeps[DeployChainContractsConfig]) error {
+	return verifyDeployChainContractsPreconditions(e, config)
+}
+
+func verifyDeployChainContractsPreconditions(e cldf.Environment, config CantonCSDeps[DeployChainContractsConfig]) error {
 	chain, ok := e.BlockChains.CantonChains()[config.ChainSelector]
 	if !ok {
 		return fmt.Errorf("canton chain %v not found", config.ChainSelector)

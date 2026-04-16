@@ -25,11 +25,119 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/rmn"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/splice/splice_api_token_holding_v1"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
+	factoryops "github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/factory"
 	"github.com/smartcontractkit/chainlink-canton/deployment/sequences"
 )
 
 func TestDeployChainContracts(t *testing.T) {
 	t.Parallel()
+
+	env, ccipOwnerParty := newDeployChainContractsTestEnv(t, false)
+
+	chainSelector := types.NUMERIC(strconv.FormatUint(chainsel.CANTON_LOCALNET.Selector, 10))
+	config := CantonCSDeps[DeployChainContractsConfig]{
+		ChainSelector: chainsel.CANTON_LOCALNET.Selector,
+		Participant:   0,
+		Config: DeployChainContractsConfig{
+			Params: sequences.DeployChainContractsParams{
+				CCIPOwnerParty: ccipOwnerParty,
+				CommitteeVerifiers: []sequences.CommitteeVerifierParams{
+					{
+						Template: ccvs.CommitteeVerifier{
+							Owner:                        types.PARTY(ccipOwnerParty),
+							CcipOwner:                    types.PARTY(ccipOwnerParty),
+							VersionTag:                   types.TEXT("e9a05a20"),
+							MessageSentObservers:         nil,
+							StorageLocations:             []types.TEXT{"ipfs://test-receive"},
+							StorageLocationsAdmin:        types.PARTY(ccipOwnerParty),
+							PendingStorageLocationsAdmin: types.PARTY(ccipOwnerParty),
+						},
+					},
+				},
+				GlobalConfig: sequences.GlobalConfigParams{
+					Template: common.GlobalConfig{
+						CcipOwner:     "",
+						ChainSelector: chainSelector,
+					},
+				},
+				RMNRemote: sequences.RMNRemoteParams{
+					Template: rmn.RMNRemote{
+						CcipOwner:      "",
+						RmnOwner:       types.PARTY(ccipOwnerParty),
+						CursedSubjects: nil,
+					},
+				},
+				NativeInstrumentId: splice_api_token_holding_v1.InstrumentId{
+					Admin: types.PARTY(ccipOwnerParty),
+					Id:    "LINK",
+				},
+			},
+		},
+	}
+
+	out, err := DeployChainContracts{}.Apply(*env, config)
+	require.NoError(t, err)
+
+	addresses := out.DataStore.Addresses().Filter()
+	for i, address := range addresses {
+		fmt.Printf("Deployed Address %d: ChainSelector=%d, Type=%s, Version=%s, Address=%s, Qualifier=%s\n", i, address.ChainSelector, address.Type, address.Version, address.Address, address.Qualifier)
+	}
+}
+
+func TestDeployChainContractsFromFactory(t *testing.T) {
+	t.Parallel()
+
+	env, ccipOwnerParty := newDeployChainContractsTestEnv(t, true)
+
+	chainSelector := types.NUMERIC(strconv.FormatUint(chainsel.CANTON_LOCALNET.Selector, 10))
+	config := CantonCSDeps[DeployChainContractsConfig]{
+		ChainSelector: chainsel.CANTON_LOCALNET.Selector,
+		Participant:   0,
+		Config: DeployChainContractsConfig{
+			Params: sequences.DeployChainContractsParams{
+				CCIPOwnerParty: ccipOwnerParty,
+				CommitteeVerifiers: []sequences.CommitteeVerifierParams{
+					{
+						Template: ccvs.CommitteeVerifier{
+							Owner:                        types.PARTY(ccipOwnerParty),
+							CcipOwner:                    types.PARTY(ccipOwnerParty),
+							VersionTag:                   types.TEXT("e9a05a20"),
+							MessageSentObservers:         nil,
+							StorageLocations:             []types.TEXT{"ipfs://test-receive"},
+							StorageLocationsAdmin:        types.PARTY(ccipOwnerParty),
+							PendingStorageLocationsAdmin: types.PARTY(ccipOwnerParty),
+						},
+					},
+				},
+				GlobalConfig: sequences.GlobalConfigParams{
+					Template: common.GlobalConfig{
+						ChainSelector: chainSelector,
+					},
+				},
+				RMNRemote: sequences.RMNRemoteParams{
+					Template: rmn.RMNRemote{
+						RmnOwner:       types.PARTY(ccipOwnerParty),
+						CursedSubjects: nil,
+					},
+				},
+				NativeInstrumentId: splice_api_token_holding_v1.InstrumentId{
+					Admin: types.PARTY(ccipOwnerParty),
+					Id:    "LINK",
+				},
+			},
+		},
+	}
+
+	out, err := DeployChainContractsFromFactory{}.Apply(*env, config)
+	require.NoError(t, err)
+
+	addresses := out.DataStore.Addresses().Filter()
+	require.Len(t, addresses, 9)
+	require.True(t, hasAddressType(addresses, datastore.ContractType(factoryops.ContractType)))
+}
+
+func newDeployChainContractsTestEnv(t *testing.T, includeFactory bool) (*cldf.Environment, string) {
+	t.Helper()
 
 	bc, err := cantonProvider.NewCTFChainProvider(t, chainsel.CANTON_LOCALNET.Selector, cantonProvider.CTFChainProviderConfig{
 		NumberOfValidators: 1,
@@ -41,7 +149,6 @@ func TestDeployChainContracts(t *testing.T) {
 	participant := cantonChain.Participants[0]
 	ccipOwnerParty := participant.PartyID
 
-	// Upload Dars
 	dars := []struct {
 		contract contracts.Package
 		name     string
@@ -53,6 +160,12 @@ func TestDeployChainContracts(t *testing.T) {
 		{contracts.CCIPCommitteeVerifier, "committee verifier"},
 		{contracts.CCIPLockReleaseTokenPool, "token pool"},
 		{contracts.CCIPPerPartyRouter, "per-party router"},
+	}
+	if includeFactory {
+		dars = append(dars, struct {
+			contract contracts.Package
+			name     string
+		}{contracts.CCIPFactory, "factory"})
 	}
 
 	darData := make([]*participantv30.UploadDarRequest_UploadDarData, 0, len(dars))
@@ -75,16 +188,7 @@ func TestDeployChainContracts(t *testing.T) {
 		logger.Test(t),
 		reporter,
 	)
-	env := &cldf.Environment{
-		Logger:           logger.Test(t),
-		GetContext:       t.Context,
-		DataStore:        datastore.NewMemoryDataStore().Seal(),
-		BlockChains:      chain.NewBlockChainsFromSlice([]chain.BlockChain{bc}),
-		OperationsBundle: bundle,
-	}
 
-	// CCV Setup
-	// Generate signer keys for CommitteeVerifier
 	ccvSignerPubKeys := make([]types.TEXT, 0, 3)
 	for range 3 {
 		pk, err := crypto.GenerateKey()
@@ -92,56 +196,23 @@ func TestDeployChainContracts(t *testing.T) {
 		pubKeyHex := hex.EncodeToString(crypto.FromECDSAPub(&pk.PublicKey))
 		ccvSignerPubKeys = append(ccvSignerPubKeys, types.TEXT(pubKeyHex))
 	}
-	versionTag := "e9a05a20"
-	_ = ccvSignerPubKeys // The signers are set during lane deployment
-	// ccvID := versionTag + "@" + user.PrimaryParty
+	_ = ccvSignerPubKeys
 
-	chainSelector := types.NUMERIC(strconv.FormatUint(chainsel.CANTON_LOCALNET.Selector, 10))
-	config := CantonCSDeps[DeployChainContractsConfig]{
-		ChainSelector: chainsel.CANTON_LOCALNET.Selector,
-		Participant:   0,
-		Config: DeployChainContractsConfig{
-			Params: sequences.DeployChainContractsParams{
-				CCIPOwnerParty: ccipOwnerParty,
-				CommitteeVerifiers: []sequences.CommitteeVerifierParams{
-					{
-						Template: ccvs.CommitteeVerifier{
-							Owner:                        types.PARTY(ccipOwnerParty),
-							CcipOwner:                    types.PARTY(ccipOwnerParty),
-							VersionTag:                   types.TEXT(versionTag),
-							MessageSentObservers:         nil,
-							StorageLocations:             []types.TEXT{"ipfs://test-receive"},
-							StorageLocationsAdmin:        types.PARTY(ccipOwnerParty),
-							PendingStorageLocationsAdmin: types.PARTY(ccipOwnerParty),
-						},
-					},
-				},
-				GlobalConfig: sequences.GlobalConfigParams{
-					Template: common.GlobalConfig{
-						CcipOwner:     "", // Populated by the sequence
-						ChainSelector: chainSelector,
-					},
-				},
-				RMNRemote: sequences.RMNRemoteParams{
-					Template: rmn.RMNRemote{
-						CcipOwner:      "", // Populated by the sequence
-						RmnOwner:       types.PARTY(ccipOwnerParty),
-						CursedSubjects: nil,
-					},
-				},
-				NativeInstrumentId: splice_api_token_holding_v1.InstrumentId{
-					Admin: types.PARTY(ccipOwnerParty),
-					Id:    "LINK",
-				},
-			},
-		},
+	return &cldf.Environment{
+		Logger:           logger.Test(t),
+		GetContext:       t.Context,
+		DataStore:        datastore.NewMemoryDataStore().Seal(),
+		BlockChains:      chain.NewBlockChainsFromSlice([]chain.BlockChain{bc}),
+		OperationsBundle: bundle,
+	}, ccipOwnerParty
+}
+
+func hasAddressType(addresses []datastore.AddressRef, contractType datastore.ContractType) bool {
+	for _, address := range addresses {
+		if address.Type == contractType {
+			return true
+		}
 	}
 
-	out, err := DeployChainContracts{}.Apply(*env, config)
-	require.NoError(t, err)
-
-	addresses := out.DataStore.Addresses().Filter()
-	for i, address := range addresses {
-		fmt.Printf("Deployed Address %d: ChainSelector=%d, Type=%s, Version=%s, Address=%s, Qualifier=%s\n", i, address.ChainSelector, address.Type, address.Version, address.Address, address.Qualifier)
-	}
+	return false
 }

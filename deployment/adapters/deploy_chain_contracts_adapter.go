@@ -10,11 +10,13 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/smartcontractkit/chainlink-ccip/deployment/finality"
+	ccipdeploymentutils "github.com/smartcontractkit/chainlink-ccip/deployment/utils"
 	seqcore "github.com/smartcontractkit/chainlink-ccip/deployment/utils/sequences"
 	ccipadapters "github.com/smartcontractkit/chainlink-ccip/deployment/v2_0_0/adapters"
 	devenvcommon "github.com/smartcontractkit/chainlink-ccv/build/devenv/common"
 	cldf_chain "github.com/smartcontractkit/chainlink-deployments-framework/chain"
 	"github.com/smartcontractkit/chainlink-deployments-framework/chain/canton"
+	"github.com/smartcontractkit/chainlink-deployments-framework/datastore"
 	cldf_ops "github.com/smartcontractkit/chainlink-deployments-framework/operations"
 	"github.com/smartcontractkit/go-daml/pkg/types"
 
@@ -68,7 +70,7 @@ func DeployCantonChainContracts(ctx context.Context, bundle cldf_ops.Bundle, cha
 		return seqcore.OnChainOutput{}, err
 	}
 
-	out, err := cldf_ops.ExecuteSequence(bundle, sequences.DeployChainContracts, chain, sequences.DeployChainContractsParams{
+	out, err := cldf_ops.ExecuteSequence(bundle, sequences.DeployChainContractsFromFactory, chain, sequences.DeployChainContractsParams{
 		CCIPOwnerParty:     ownerParty,
 		CommitteeVerifiers: committeeVerifierParams(ownerParty, input.ContractParams.CommitteeVerifiers),
 		GlobalConfig: sequences.GlobalConfigParams{
@@ -77,6 +79,7 @@ func DeployCantonChainContracts(ctx context.Context, bundle cldf_ops.Bundle, cha
 				ChainSelector: types.NUMERIC(strconv.FormatUint(input.ChainSelector, 10)),
 			},
 		},
+		ProposalDriven:     shouldUseMCMSProposalDeployment(input),
 		NativeInstrumentId: nativeInstrumentID,
 		FeeQuoterConfig: sequences.FeeQuoterParams{
 			Template: feequoter.FeeQuoter{
@@ -96,7 +99,27 @@ func DeployCantonChainContracts(ctx context.Context, bundle cldf_ops.Bundle, cha
 		return seqcore.OnChainOutput{}, fmt.Errorf("failed to deploy canton chain contracts for selector %d: %w", input.ChainSelector, err)
 	}
 
-	return seqcore.OnChainOutput{Addresses: out.Output.Addresses}, nil
+	return seqcore.OnChainOutput{
+		Addresses: out.Output.Addresses,
+		BatchOps:  out.Output.BatchOps,
+	}, nil
+}
+
+func shouldUseMCMSProposalDeployment(input ccipadapters.DeployChainContractsInput) bool {
+	if input.DeployerKeyOwned {
+		return false
+	}
+
+	for _, ref := range input.ExistingAddresses {
+		switch ref.Type {
+		case datastore.ContractType(ccipdeploymentutils.BypasserManyChainMultisig),
+			datastore.ContractType(ccipdeploymentutils.CancellerManyChainMultisig),
+			datastore.ContractType(ccipdeploymentutils.ProposerManyChainMultisig):
+			return true
+		}
+	}
+
+	return false
 }
 
 func deployerPartyID(deployerContract string, participant canton.Participant) string {
