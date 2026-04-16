@@ -5,6 +5,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/smartcontractkit/chainlink-deployments-framework/deployment"
+	"github.com/smartcontractkit/go-daml/pkg/bind"
 
 	factorybindings "github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/factory"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
@@ -42,7 +43,7 @@ var DeployRMNRemote = contract.NewExercise(contract.ExerciseParams[factorybindin
 	ContractType: ContractType,
 	Template:     factorybindings.CCIPFactory{},
 	Method:       factorybindings.CCIPFactory{}.DeployRMNRemote,
-	EncodeMethod: factoryEncoder.DeployRMNRemote,
+	EncodeMethod: encodeDeployRMNRemote,
 })
 
 var DeployGlobalConfig = contract.NewExercise(contract.ExerciseParams[factorybindings.DeployGlobalConfig]{
@@ -52,7 +53,7 @@ var DeployGlobalConfig = contract.NewExercise(contract.ExerciseParams[factorybin
 	ContractType: ContractType,
 	Template:     factorybindings.CCIPFactory{},
 	Method:       factorybindings.CCIPFactory{}.DeployGlobalConfig,
-	EncodeMethod: factoryEncoder.DeployGlobalConfig,
+	EncodeMethod: encodeDeployGlobalConfig,
 })
 
 var DeployTokenAdminRegistry = contract.NewExercise(contract.ExerciseParams[factorybindings.DeployTokenAdminRegistry]{
@@ -62,7 +63,7 @@ var DeployTokenAdminRegistry = contract.NewExercise(contract.ExerciseParams[fact
 	ContractType: ContractType,
 	Template:     factorybindings.CCIPFactory{},
 	Method:       factorybindings.CCIPFactory{}.DeployTokenAdminRegistry,
-	EncodeMethod: factoryEncoder.DeployTokenAdminRegistry,
+	EncodeMethod: encodeDeployTokenAdminRegistry,
 })
 
 var DeployFeeQuoter = contract.NewExercise(contract.ExerciseParams[factorybindings.DeployFeeQuoter]{
@@ -72,7 +73,7 @@ var DeployFeeQuoter = contract.NewExercise(contract.ExerciseParams[factorybindin
 	ContractType: ContractType,
 	Template:     factorybindings.CCIPFactory{},
 	Method:       factorybindings.CCIPFactory{}.DeployFeeQuoter,
-	EncodeMethod: factoryEncoder.DeployFeeQuoter,
+	EncodeMethod: encodeDeployFeeQuoter,
 })
 
 var DeployCommitteeVerifier = contract.NewExercise(contract.ExerciseParams[factorybindings.DeployCommitteeVerifier]{
@@ -82,7 +83,7 @@ var DeployCommitteeVerifier = contract.NewExercise(contract.ExerciseParams[facto
 	ContractType: ContractType,
 	Template:     factorybindings.CCIPFactory{},
 	Method:       factorybindings.CCIPFactory{}.DeployCommitteeVerifier,
-	EncodeMethod: factoryEncoder.DeployCommitteeVerifier,
+	EncodeMethod: encodeDeployCommitteeVerifier,
 })
 
 var DeployOffRamp = contract.NewExercise(contract.ExerciseParams[factorybindings.DeployOffRamp]{
@@ -92,7 +93,7 @@ var DeployOffRamp = contract.NewExercise(contract.ExerciseParams[factorybindings
 	ContractType: ContractType,
 	Template:     factorybindings.CCIPFactory{},
 	Method:       factorybindings.CCIPFactory{}.DeployOffRamp,
-	EncodeMethod: factoryEncoder.DeployOffRamp,
+	EncodeMethod: encodeDeployOffRamp,
 })
 
 var DeployOnRamp = contract.NewExercise(contract.ExerciseParams[factorybindings.DeployOnRamp]{
@@ -102,7 +103,7 @@ var DeployOnRamp = contract.NewExercise(contract.ExerciseParams[factorybindings.
 	ContractType: ContractType,
 	Template:     factorybindings.CCIPFactory{},
 	Method:       factorybindings.CCIPFactory{}.DeployOnRamp,
-	EncodeMethod: factoryEncoder.DeployOnRamp,
+	EncodeMethod: encodeDeployOnRamp,
 })
 
 var DeployPerPartyRouterFactory = contract.NewExercise(contract.ExerciseParams[factorybindings.DeployPerPartyRouterFactory]{
@@ -112,5 +113,83 @@ var DeployPerPartyRouterFactory = contract.NewExercise(contract.ExerciseParams[f
 	ContractType: ContractType,
 	Template:     factorybindings.CCIPFactory{},
 	Method:       factorybindings.CCIPFactory{}.DeployPerPartyRouterFactory,
-	EncodeMethod: factoryEncoder.DeployPerPartyRouterFactory,
+	EncodeMethod: encodeDeployPerPartyRouterFactory,
 })
+
+func encodeDeployRMNRemote(args factorybindings.DeployRMNRemote) (*bind.EncodedChoice, error) {
+	return factoryEncoder.DeployRMNRemoteParams(factorybindings.DeployRMNRemoteParams{
+		InstanceId:      args.Contract.InstanceId,
+		RmnOwner:        args.Contract.RmnOwner,
+		CcipOwner:       args.Contract.CcipOwner,
+		CustomObservers: args.Contract.CustomObservers,
+		CursedSubjects:  args.Contract.CursedSubjects,
+	})
+}
+
+func encodeDeployGlobalConfig(args factorybindings.DeployGlobalConfig) (*bind.EncodedChoice, error) {
+	return factoryEncoder.DeployGlobalConfigParams(factorybindings.DeployGlobalConfigParams{
+		InstanceId:    args.Contract.InstanceId,
+		ChainSelector: args.Contract.ChainSelector,
+	})
+}
+
+func encodeDeployTokenAdminRegistry(args factorybindings.DeployTokenAdminRegistry) (*bind.EncodedChoice, error) {
+	return factoryEncoder.DeployTokenAdminRegistryParams(factorybindings.DeployTokenAdminRegistryParams{
+		InstanceId: args.Contract.InstanceId,
+	})
+}
+
+func encodeDeployFeeQuoter(args factorybindings.DeployFeeQuoter) (*bind.EncodedChoice, error) {
+	return factoryEncoder.DeployFeeQuoterParams(factorybindings.DeployFeeQuoterParams{
+		InstanceId:            args.Contract.InstanceId,
+		LinkTokenInstrumentId: args.Contract.LinkTokenInstrumentId,
+	})
+}
+
+func encodeDeployCommitteeVerifier(args factorybindings.DeployCommitteeVerifier) (*bind.EncodedChoice, error) {
+	return factoryEncoder.DeployCommitteeVerifierParams(factorybindings.DeployCommitteeVerifierParams{
+		InstanceId:                   args.Contract.InstanceId,
+		Owner:                        args.Contract.Owner,
+		CcipOwner:                    args.Contract.CcipOwner,
+		VersionTag:                   args.Contract.VersionTag,
+		AllowListAdmin:               args.Contract.AllowListAdmin,
+		MessageSentObservers:         args.Contract.MessageSentObservers,
+		RmnRemote:                    args.Contract.Deps.RmnRemote,
+		StorageLocations:             args.Contract.StorageLocations,
+		StorageLocationsAdmin:        args.Contract.StorageLocationsAdmin,
+		PendingStorageLocationsAdmin: args.Contract.PendingStorageLocationsAdmin,
+	})
+}
+
+func encodeDeployOffRamp(args factorybindings.DeployOffRamp) (*bind.EncodedChoice, error) {
+	return factoryEncoder.DeployOffRampParams(factorybindings.DeployOffRampParams{
+		InstanceId:         args.Contract.InstanceId,
+		GlobalConfig:       args.Contract.Deps.GlobalConfig,
+		RmnRemote:          args.Contract.Deps.RmnRemote,
+		TokenAdminRegistry: args.Contract.Deps.TokenAdminRegistry,
+	})
+}
+
+func encodeDeployOnRamp(args factorybindings.DeployOnRamp) (*bind.EncodedChoice, error) {
+	return factoryEncoder.DeployOnRampParams(factorybindings.DeployOnRampParams{
+		InstanceId:         args.Contract.InstanceId,
+		GlobalConfig:       args.Contract.Deps.GlobalConfig,
+		RmnRemote:          args.Contract.Deps.RmnRemote,
+		TokenAdminRegistry: args.Contract.Deps.TokenAdminRegistry,
+		FeeQuoter:          args.Contract.Deps.FeeQuoter,
+		CcvRegistry:        args.Contract.Deps.CcvRegistry,
+		MaxUSDCentsPerMsg:  args.Contract.MaxUSDCentsPerMsg,
+	})
+}
+
+func encodeDeployPerPartyRouterFactory(args factorybindings.DeployPerPartyRouterFactory) (*bind.EncodedChoice, error) {
+	return factoryEncoder.DeployPerPartyRouterFactoryParams(factorybindings.DeployPerPartyRouterFactoryParams{
+		InstanceId:         args.Contract.InstanceId,
+		OnRamp:             args.Contract.Deps.OnRamp,
+		OffRamp:            args.Contract.Deps.OffRamp,
+		GlobalConfig:       args.Contract.Deps.GlobalConfig,
+		TokenAdminRegistry: args.Contract.Deps.TokenAdminRegistry,
+		FeeQuoter:          args.Contract.Deps.FeeQuoter,
+		RmnRemote:          args.Contract.Deps.RmnRemote,
+	})
+}

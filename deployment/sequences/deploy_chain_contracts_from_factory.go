@@ -47,30 +47,9 @@ var DeployChainContractsFromFactory = operations.NewSequence(
 		var proposalOutputs []contract.ExerciseOutput
 
 		ownerParty := types.PARTY(input.CCIPOwnerParty)
-
-		factoryInstanceID, err := contracts.NewInstanceID("factory")
+		factoryRawInstanceAddress, err := rawInstanceAddressFromAddressRef(input.FactoryAddressRef)
 		if err != nil {
-			return sequences.OnChainOutput{}, fmt.Errorf("failed to create factory instance ID: %w", err)
-		}
-
-		deployFactoryReport, err := operations.ExecuteOperation(b, factoryops.Deploy, deps, contract.DeployInput[factorybindings.CCIPFactory]{
-			Template: factorybindings.CCIPFactory{
-				InstanceId:                    types.TEXT(factoryInstanceID),
-				Owner:                         ownerParty,
-				McmsParty:                     ownerParty,
-				UsedInstanceIds:               types.GENMAP{},
-				DeployedContracts:             types.GENMAP{},
-				PerPartyRouterFactoryDeployed: false,
-			},
-			OwnerParty: ownerParty,
-		})
-		if err != nil {
-			return sequences.OnChainOutput{}, fmt.Errorf("failed to deploy CCIPFactory: %w", err)
-		}
-		addresses = append(addresses, deployFactoryReport.Output)
-		factoryRawInstanceAddress, err := contracts.RawInstanceAddressFromString(deployFactoryReport.Output.Labels.List()[0])
-		if err != nil {
-			return sequences.OnChainOutput{}, fmt.Errorf("failed to parse CCIPFactory raw instance address: %w", err)
+			return sequences.OnChainOutput{}, err
 		}
 
 		rmnInstanceID, err := ensureInstanceID(input.RMNRemote.Template.InstanceId, "rmn_remote")
@@ -157,28 +136,6 @@ var DeployChainContractsFromFactory = operations.NewSequence(
 		proposalOutputs = appendExerciseOutput(proposalOutputs, deployFeeQuoterReport.Output, input.ProposalDriven)
 		feeQuoterRawInstanceAddress := feeQuoterInstanceID.RawInstanceAddress(ownerParty)
 		addresses = append(addresses, newAddressRef(deps.ChainSelector(), feeQuoterRawInstanceAddress, fee_quoter.ContractType, fee_quoter.Version, ""))
-
-		if input.FeeQuoterConfig.USDPerNative != nil {
-			updatePricesReport, err := operations.ExecuteOperation(b, fee_quoter.UpdatePrices, deps, contract.ChoiceInput[feequoter.UpdatePrices]{
-				InstanceAddress:    feeQuoterRawInstanceAddress.InstanceAddress(),
-				RawInstanceAddress: feeQuoterRawInstanceAddress.String(),
-				Args: feequoter.UpdatePrices{
-					PriceUpdates: feequoter.PriceUpdates{
-						TokenPriceUpdates: []feequoter.TokenPriceUpdate{
-							{
-								InstrumentId: input.NativeInstrumentId,
-								UsdPerToken:  types.NUMERIC(input.FeeQuoterConfig.USDPerNative.String()),
-							},
-						},
-					},
-				},
-				MCMSEnabled: input.ProposalDriven,
-			})
-			if err != nil {
-				return sequences.OnChainOutput{}, fmt.Errorf("failed to update native token price on FeeQuoter: %w", err)
-			}
-			proposalOutputs = appendExerciseOutput(proposalOutputs, updatePricesReport.Output, input.ProposalDriven)
-		}
 
 		var firstCommitteeVerifierBinding mcms.RawInstanceAddress
 		for i, committeeVerifierParams := range input.CommitteeVerifiers {
@@ -360,4 +317,18 @@ func newAddressRef(
 		Version:       version,
 		Qualifier:     qualifier,
 	}
+}
+
+func rawInstanceAddressFromAddressRef(ref datastore.AddressRef) (contracts.RawInstanceAddress, error) {
+	labels := ref.Labels.List()
+	if len(labels) == 0 {
+		return "", fmt.Errorf("address ref for %s is missing raw instance address label", ref.Type)
+	}
+
+	rawInstanceAddress, err := contracts.RawInstanceAddressFromString(labels[0])
+	if err != nil {
+		return "", fmt.Errorf("parse raw instance address label %q: %w", labels[0], err)
+	}
+
+	return rawInstanceAddress, nil
 }

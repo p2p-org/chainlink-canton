@@ -1,4 +1,4 @@
-package sequences
+package bootstrapchangesets
 
 import (
 	"fmt"
@@ -6,9 +6,10 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	ccipdeploymentutils "github.com/smartcontractkit/chainlink-ccip/deployment/utils"
-	"github.com/smartcontractkit/chainlink-ccip/deployment/utils/sequences"
+	ccipsequences "github.com/smartcontractkit/chainlink-ccip/deployment/utils/sequences"
 	"github.com/smartcontractkit/chainlink-deployments-framework/chain/canton"
 	"github.com/smartcontractkit/chainlink-deployments-framework/datastore"
+	cldf "github.com/smartcontractkit/chainlink-deployments-framework/deployment"
 	"github.com/smartcontractkit/chainlink-deployments-framework/operations"
 	"github.com/smartcontractkit/go-daml/pkg/types"
 
@@ -20,44 +21,96 @@ import (
 
 const mcmsGroupCount = 32
 
+type CantonCSDeps[CFG any] struct {
+	ChainSelector uint64
+	Participant   int
+	Config        CFG
+}
+
 type MCMSConfigParams struct {
-	Signers      []mcmsbindings.SignerInfo
-	GroupQuorums []types.INT64
-	GroupParents []types.INT64
-	ClearRoot    bool
+	Signers      []mcmsbindings.SignerInfo `json:"signers" yaml:"signers"`
+	GroupQuorums []types.INT64             `json:"groupQuorums" yaml:"groupQuorums"`
+	GroupParents []types.INT64             `json:"groupParents" yaml:"groupParents"`
+	ClearRoot    bool                      `json:"clearRoot" yaml:"clearRoot"`
 }
 
 type MCMSRoleConfigParams struct {
-	Role   mcmsbindings.Role
-	Config MCMSConfigParams
+	Role   mcmsbindings.Role `json:"role" yaml:"role"`
+	Config MCMSConfigParams  `json:"config" yaml:"config"`
 }
 
 type DeployAndConfigureMCMSParams struct {
-	OwnerParty       string
-	InstanceID       string
-	ChainID          int64
-	Qualifier        string
-	MinDelay         time.Duration
-	BlockedFunctions []mcmsbindings.BlockedFunction
-	InitialConfig    MCMSConfigParams
-	RoleConfigs      []MCMSRoleConfigParams
+	OwnerParty       string                         `json:"ownerParty" yaml:"ownerParty"`
+	InstanceID       string                         `json:"instanceID,omitempty" yaml:"instanceID,omitempty"`
+	ChainID          int64                          `json:"chainID" yaml:"chainID"`
+	Qualifier        string                         `json:"qualifier,omitempty" yaml:"qualifier,omitempty"`
+	MinDelay         time.Duration                  `json:"minDelay" yaml:"minDelay"`
+	BlockedFunctions []mcmsbindings.BlockedFunction `json:"blockedFunctions" yaml:"blockedFunctions"`
+	InitialConfig    MCMSConfigParams               `json:"initialConfig" yaml:"initialConfig"`
+	RoleConfigs      []MCMSRoleConfigParams         `json:"roleConfigs" yaml:"roleConfigs"`
 }
 
-var DeployAndConfigureMCMS = operations.NewSequence(
+type DeployAndConfigureMCMSConfig struct {
+	Params DeployAndConfigureMCMSParams `json:"params" yaml:"params"`
+}
+
+type DeployAndConfigureMCMS struct{}
+
+var _ cldf.ChangeSetV2[CantonCSDeps[DeployAndConfigureMCMSConfig]] = DeployAndConfigureMCMS{}
+
+func (d DeployAndConfigureMCMS) VerifyPreconditions(e cldf.Environment, config CantonCSDeps[DeployAndConfigureMCMSConfig]) error {
+	chain, ok := e.BlockChains.CantonChains()[config.ChainSelector]
+	if !ok {
+		return fmt.Errorf("canton chain %v not found", config.ChainSelector)
+	}
+	if config.Participant < 0 || config.Participant >= len(chain.Participants) {
+		return fmt.Errorf("participant index %d out of range for canton chain %d with %d participants", config.Participant, config.ChainSelector, len(chain.Participants))
+	}
+
+	params := config.Config.Params
+	if params.OwnerParty == "" {
+		return fmt.Errorf("owner party is required")
+	}
+	if params.ChainID <= 0 {
+		return fmt.Errorf("chain ID must be greater than zero")
+	}
+
+	return nil
+}
+
+func (d DeployAndConfigureMCMS) Apply(e cldf.Environment, config CantonCSDeps[DeployAndConfigureMCMSConfig]) (cldf.ChangesetOutput, error) {
+	ds := datastore.NewMemoryDataStore()
+	chain := e.BlockChains.CantonChains()[config.ChainSelector]
+
+	out, err := operations.ExecuteSequence(e.OperationsBundle, deployAndConfigureMCMSSequence, chain, config.Config.Params)
+	if err != nil {
+		return cldf.ChangesetOutput{}, fmt.Errorf("failed to execute DeployAndConfigureMCMS sequence: %w", err)
+	}
+
+	for _, addrRef := range out.Output.Addresses {
+		if err := ds.AddressRefStore.Add(addrRef); err != nil {
+			return cldf.ChangesetOutput{}, fmt.Errorf("failed to store address ref %v: %w", addrRef, err)
+		}
+	}
+
+	return cldf.ChangesetOutput{DataStore: ds, Reports: []operations.Report[any, any]{}}, nil
+}
+
+var deployAndConfigureMCMSSequence = operations.NewSequence(
 	"canton/mcms/deploy_and_configure",
 	semver.MustParse("0.1.0"),
 	"Deploys and configures a Canton MCMS contract",
-	func(b operations.Bundle, deps canton.Chain, input DeployAndConfigureMCMSParams) (sequences.OnChainOutput, error) {
+	func(b operations.Bundle, deps canton.Chain, input DeployAndConfigureMCMSParams) (ccipsequences.OnChainOutput, error) {
 		if input.OwnerParty == "" {
-			return sequences.OnChainOutput{}, fmt.Errorf("owner party is required")
+			return ccipsequences.OnChainOutput{}, fmt.Errorf("owner party is required")
 		}
 		if input.ChainID <= 0 {
-			return sequences.OnChainOutput{}, fmt.Errorf("chain ID must be greater than zero")
+			return ccipsequences.OnChainOutput{}, fmt.Errorf("chain ID must be greater than zero")
 		}
 
 		initialConfig, err := buildMultisigConfig(input.InitialConfig)
 		if err != nil {
-			return sequences.OnChainOutput{}, fmt.Errorf("build initial MCMS config: %w", err)
+			return ccipsequences.OnChainOutput{}, fmt.Errorf("build initial MCMS config: %w", err)
 		}
 
 		roleState := emptyRoleState(initialConfig)
@@ -78,20 +131,21 @@ var DeployAndConfigureMCMS = operations.NewSequence(
 			OwnerParty: ownerParty,
 		})
 		if err != nil {
-			return sequences.OnChainOutput{}, fmt.Errorf("deploy MCMS: %w", err)
+			return ccipsequences.OnChainOutput{}, fmt.Errorf("deploy MCMS: %w", err)
 		}
 
 		if len(deployReport.Output.Labels.List()) == 0 {
-			return sequences.OnChainOutput{}, fmt.Errorf("missing raw MCMS instance address label in deploy output")
+			return ccipsequences.OnChainOutput{}, fmt.Errorf("missing raw MCMS instance address label in deploy output")
 		}
 		rawInstanceAddress, err := contracts.RawInstanceAddressFromString(deployReport.Output.Labels.List()[0])
 		if err != nil {
-			return sequences.OnChainOutput{}, fmt.Errorf("parse raw MCMS instance address label: %w", err)
+			return ccipsequences.OnChainOutput{}, fmt.Errorf("parse raw MCMS instance address label: %w", err)
 		}
+
 		for i, roleConfig := range input.RoleConfigs {
 			groupConfig, err := buildNormalizedConfig(roleConfig.Config)
 			if err != nil {
-				return sequences.OnChainOutput{}, fmt.Errorf("build MCMS config for role %s: %w", roleConfig.Role, err)
+				return ccipsequences.OnChainOutput{}, fmt.Errorf("build MCMS config for role %s: %w", roleConfig.Role, err)
 			}
 
 			_, err = operations.ExecuteOperation(b, mcmsops.SetConfig, deps, opcontract.ChoiceInput[mcmsbindings.SetConfig]{
@@ -105,7 +159,7 @@ var DeployAndConfigureMCMS = operations.NewSequence(
 				},
 			})
 			if err != nil {
-				return sequences.OnChainOutput{}, fmt.Errorf("configure MCMS role %s at index %d: %w", roleConfig.Role, i, err)
+				return ccipsequences.OnChainOutput{}, fmt.Errorf("configure MCMS role %s at index %d: %w", roleConfig.Role, i, err)
 			}
 		}
 
@@ -117,7 +171,7 @@ var DeployAndConfigureMCMS = operations.NewSequence(
 			newMCMSRoleAddressRef(deps.ChainSelector(), rawInstanceAddress, datastore.ContractType(ccipdeploymentutils.RBACTimelock), qualifierOrDefault(input.Qualifier)),
 		}
 
-		return sequences.OnChainOutput{Addresses: refs}, nil
+		return ccipsequences.OnChainOutput{Addresses: refs}, nil
 	},
 )
 
@@ -159,7 +213,6 @@ func normalizeGroups(input []types.INT64, name string) ([]types.INT64, error) {
 
 	out := make([]types.INT64, mcmsGroupCount)
 	copy(out, input)
-
 	return out, nil
 }
 
@@ -186,16 +239,10 @@ func qualifierOrDefault(qualifier string) string {
 	if qualifier != "" {
 		return qualifier
 	}
-
 	return ccipdeploymentutils.CLLQualifier
 }
 
-func newMCMSRoleAddressRef(
-	chainSelector uint64,
-	rawInstanceAddress contracts.RawInstanceAddress,
-	contractType datastore.ContractType,
-	qualifier string,
-) datastore.AddressRef {
+func newMCMSRoleAddressRef(chainSelector uint64, rawInstanceAddress contracts.RawInstanceAddress, contractType datastore.ContractType, qualifier string) datastore.AddressRef {
 	return datastore.AddressRef{
 		Address:       rawInstanceAddress.InstanceAddress().String(),
 		Labels:        datastore.NewLabelSet(rawInstanceAddress.String()),

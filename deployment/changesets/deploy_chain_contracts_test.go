@@ -22,11 +22,13 @@ import (
 
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/ccvs"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/common"
+	factorybindings "github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/factory"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/rmn"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/splice/splice_api_token_holding_v1"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	factoryops "github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/factory"
 	"github.com/smartcontractkit/chainlink-canton/deployment/sequences"
+	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 )
 
 func TestDeployChainContracts(t *testing.T) {
@@ -41,6 +43,10 @@ func TestDeployChainContracts(t *testing.T) {
 		Config: DeployChainContractsConfig{
 			Params: sequences.DeployChainContractsParams{
 				CCIPOwnerParty: ccipOwnerParty,
+				FactoryAddressRef: env.DataStore.Addresses().Filter(
+					datastore.AddressRefByChainSelector(chainsel.CANTON_LOCALNET.Selector),
+					datastore.AddressRefByType(datastore.ContractType(factoryops.ContractType)),
+				)[0],
 				CommitteeVerifiers: []sequences.CommitteeVerifierParams{
 					{
 						Template: ccvs.CommitteeVerifier{
@@ -132,8 +138,8 @@ func TestDeployChainContractsFromFactory(t *testing.T) {
 	require.NoError(t, err)
 
 	addresses := out.DataStore.Addresses().Filter()
-	require.Len(t, addresses, 9)
-	require.True(t, hasAddressType(addresses, datastore.ContractType(factoryops.ContractType)))
+	require.Len(t, addresses, 8)
+	require.False(t, hasAddressType(addresses, datastore.ContractType(factoryops.ContractType)))
 }
 
 func newDeployChainContractsTestEnv(t *testing.T, includeFactory bool) (*cldf.Environment, string) {
@@ -198,10 +204,26 @@ func newDeployChainContractsTestEnv(t *testing.T, includeFactory bool) (*cldf.En
 	}
 	_ = ccvSignerPubKeys
 
+	ds := datastore.NewMemoryDataStore()
+	if includeFactory {
+		deployFactoryReport, err := cld_ops.ExecuteOperation(bundle, factoryops.Deploy, *cantonChain, contract.DeployInput[factorybindings.CCIPFactory]{
+			Template: factorybindings.CCIPFactory{
+				Owner:                         types.PARTY(ccipOwnerParty),
+				McmsParty:                     types.PARTY(ccipOwnerParty),
+				UsedInstanceIds:               types.GENMAP{},
+				DeployedContracts:             types.GENMAP{},
+				PerPartyRouterFactoryDeployed: false,
+			},
+			OwnerParty: types.PARTY(ccipOwnerParty),
+		})
+		require.NoError(t, err)
+		require.NoError(t, ds.AddressRefStore.Add(deployFactoryReport.Output))
+	}
+
 	return &cldf.Environment{
 		Logger:           logger.Test(t),
 		GetContext:       t.Context,
-		DataStore:        datastore.NewMemoryDataStore().Seal(),
+		DataStore:        ds.Seal(),
 		BlockChains:      chain.NewBlockChainsFromSlice([]chain.BlockChain{bc}),
 		OperationsBundle: bundle,
 	}, ccipOwnerParty

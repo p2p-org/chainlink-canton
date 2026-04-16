@@ -66,6 +66,7 @@ type FeeQuoterParams struct {
 
 type DeployChainContractsParams struct {
 	CCIPOwnerParty     string
+	FactoryAddressRef  datastore.AddressRef
 	CommitteeVerifiers []CommitteeVerifierParams
 	Executors          []ExecutorParams
 	GlobalConfig       GlobalConfigParams
@@ -163,27 +164,6 @@ var DeployChainContracts = operations.NewSequence(
 		feeQuoterRawInstanceAddress, err := contracts.RawInstanceAddressFromString(deployFeeQuoterReport.Output.Labels.List()[0])
 		if err != nil {
 			return sequences.OnChainOutput{}, fmt.Errorf("failed to parse FeeQuoter raw instance address: %w", err)
-		}
-
-		// Any token with a price is treated as a fee token, so pushing the native
-		// token price is sufficient to register it as usable for fees.
-		if input.FeeQuoterConfig.USDPerNative != nil {
-			_, err = operations.ExecuteOperation(b, fee_quoter.UpdatePrices, deps, contract.ChoiceInput[feequoter.UpdatePrices]{
-				InstanceAddress: feeQuoterRawInstanceAddress.InstanceAddress(),
-				Args: feequoter.UpdatePrices{
-					PriceUpdates: feequoter.PriceUpdates{
-						TokenPriceUpdates: []feequoter.TokenPriceUpdate{
-							{
-								InstrumentId: input.NativeInstrumentId,
-								UsdPerToken:  types.NUMERIC(input.FeeQuoterConfig.USDPerNative.String()),
-							},
-						},
-					},
-				},
-			})
-			if err != nil {
-				return sequences.OnChainOutput{}, fmt.Errorf("failed to update native token price on FeeQuoter: %w", err)
-			}
 		}
 
 		// Deploy OffRamp
