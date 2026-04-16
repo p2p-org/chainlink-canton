@@ -22,19 +22,16 @@ import (
 
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/ccvs"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/common"
-	factorybindings "github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/factory"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/rmn"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/splice/splice_api_token_holding_v1"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
-	factoryops "github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/factory"
 	"github.com/smartcontractkit/chainlink-canton/deployment/sequences"
-	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 )
 
 func TestDeployChainContracts(t *testing.T) {
 	t.Parallel()
 
-	env, ccipOwnerParty := newDeployChainContractsTestEnv(t, false)
+	env, ccipOwnerParty := newDeployChainContractsTestEnv(t)
 
 	chainSelector := types.NUMERIC(strconv.FormatUint(chainsel.CANTON_LOCALNET.Selector, 10))
 	config := CantonCSDeps[DeployChainContractsConfig]{
@@ -43,10 +40,6 @@ func TestDeployChainContracts(t *testing.T) {
 		Config: DeployChainContractsConfig{
 			Params: sequences.DeployChainContractsParams{
 				CCIPOwnerParty: ccipOwnerParty,
-				FactoryAddressRef: env.DataStore.Addresses().Filter(
-					datastore.AddressRefByChainSelector(chainsel.CANTON_LOCALNET.Selector),
-					datastore.AddressRefByType(datastore.ContractType(factoryops.ContractType)),
-				)[0],
 				CommitteeVerifiers: []sequences.CommitteeVerifierParams{
 					{
 						Template: ccvs.CommitteeVerifier{
@@ -90,59 +83,7 @@ func TestDeployChainContracts(t *testing.T) {
 	}
 }
 
-func TestDeployChainContractsFromFactory(t *testing.T) {
-	t.Parallel()
-
-	env, ccipOwnerParty := newDeployChainContractsTestEnv(t, true)
-
-	chainSelector := types.NUMERIC(strconv.FormatUint(chainsel.CANTON_LOCALNET.Selector, 10))
-	config := CantonCSDeps[DeployChainContractsConfig]{
-		ChainSelector: chainsel.CANTON_LOCALNET.Selector,
-		Participant:   0,
-		Config: DeployChainContractsConfig{
-			Params: sequences.DeployChainContractsParams{
-				CCIPOwnerParty: ccipOwnerParty,
-				CommitteeVerifiers: []sequences.CommitteeVerifierParams{
-					{
-						Template: ccvs.CommitteeVerifier{
-							Owner:                        types.PARTY(ccipOwnerParty),
-							CcipOwner:                    types.PARTY(ccipOwnerParty),
-							VersionTag:                   types.TEXT("e9a05a20"),
-							MessageSentObservers:         nil,
-							StorageLocations:             []types.TEXT{"ipfs://test-receive"},
-							StorageLocationsAdmin:        types.PARTY(ccipOwnerParty),
-							PendingStorageLocationsAdmin: types.PARTY(ccipOwnerParty),
-						},
-					},
-				},
-				GlobalConfig: sequences.GlobalConfigParams{
-					Template: common.GlobalConfig{
-						ChainSelector: chainSelector,
-					},
-				},
-				RMNRemote: sequences.RMNRemoteParams{
-					Template: rmn.RMNRemote{
-						RmnOwner:       types.PARTY(ccipOwnerParty),
-						CursedSubjects: nil,
-					},
-				},
-				NativeInstrumentId: splice_api_token_holding_v1.InstrumentId{
-					Admin: types.PARTY(ccipOwnerParty),
-					Id:    "LINK",
-				},
-			},
-		},
-	}
-
-	out, err := DeployChainContractsFromFactory{}.Apply(*env, config)
-	require.NoError(t, err)
-
-	addresses := out.DataStore.Addresses().Filter()
-	require.Len(t, addresses, 8)
-	require.False(t, hasAddressType(addresses, datastore.ContractType(factoryops.ContractType)))
-}
-
-func newDeployChainContractsTestEnv(t *testing.T, includeFactory bool) (*cldf.Environment, string) {
+func newDeployChainContractsTestEnv(t *testing.T) (*cldf.Environment, string) {
 	t.Helper()
 
 	bc, err := cantonProvider.NewCTFChainProvider(t, chainsel.CANTON_LOCALNET.Selector, cantonProvider.CTFChainProviderConfig{
@@ -166,12 +107,6 @@ func newDeployChainContractsTestEnv(t *testing.T, includeFactory bool) (*cldf.En
 		{contracts.CCIPCommitteeVerifier, "committee verifier"},
 		{contracts.CCIPLockReleaseTokenPool, "token pool"},
 		{contracts.CCIPPerPartyRouter, "per-party router"},
-	}
-	if includeFactory {
-		dars = append(dars, struct {
-			contract contracts.Package
-			name     string
-		}{contracts.CCIPFactory, "factory"})
 	}
 
 	darData := make([]*participantv30.UploadDarRequest_UploadDarData, 0, len(dars))
@@ -204,37 +139,11 @@ func newDeployChainContractsTestEnv(t *testing.T, includeFactory bool) (*cldf.En
 	}
 	_ = ccvSignerPubKeys
 
-	ds := datastore.NewMemoryDataStore()
-	if includeFactory {
-		deployFactoryReport, err := cld_ops.ExecuteOperation(bundle, factoryops.Deploy, *cantonChain, contract.DeployInput[factorybindings.CCIPFactory]{
-			Template: factorybindings.CCIPFactory{
-				Owner:                         types.PARTY(ccipOwnerParty),
-				McmsParty:                     types.PARTY(ccipOwnerParty),
-				UsedInstanceIds:               types.GENMAP{},
-				DeployedContracts:             types.GENMAP{},
-				PerPartyRouterFactoryDeployed: false,
-			},
-			OwnerParty: types.PARTY(ccipOwnerParty),
-		})
-		require.NoError(t, err)
-		require.NoError(t, ds.AddressRefStore.Add(deployFactoryReport.Output))
-	}
-
 	return &cldf.Environment{
 		Logger:           logger.Test(t),
 		GetContext:       t.Context,
-		DataStore:        ds.Seal(),
+		DataStore:        datastore.NewMemoryDataStore().Seal(),
 		BlockChains:      chain.NewBlockChainsFromSlice([]chain.BlockChain{bc}),
 		OperationsBundle: bundle,
 	}, ccipOwnerParty
-}
-
-func hasAddressType(addresses []datastore.AddressRef, contractType datastore.ContractType) bool {
-	for _, address := range addresses {
-		if address.Type == contractType {
-			return true
-		}
-	}
-
-	return false
 }

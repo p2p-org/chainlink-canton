@@ -38,6 +38,9 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 )
 
+// DeployChainContractsFromFactory is the factory-backed Canton deploy path.
+// It assumes CCIPFactory has already been bootstrapped and targets that
+// existing factory for all core CCIP contract deployments.
 var DeployChainContractsFromFactory = operations.NewSequence(
 	"canton/ccip/deploy_chain_contracts_from_factory",
 	semver.MustParse("2.0.0"),
