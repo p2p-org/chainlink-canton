@@ -13,10 +13,11 @@ import (
 	"github.com/smartcontractkit/chainlink-deployments-framework/datastore"
 	"github.com/smartcontractkit/chainlink-deployments-framework/operations"
 	"github.com/smartcontractkit/go-daml/pkg/types"
+	mcms_types "github.com/smartcontractkit/mcms/types"
 
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/ccvs"
-	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/committee_verifier"
+	dsutils "github.com/smartcontractkit/chainlink-canton/deployment/utils/datastore"
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 )
 
@@ -32,11 +33,13 @@ func convertPartySlice(in []string) []types.PARTY {
 type ConfigureCommitteeVerifierAsSourceInput struct {
 	ChainSelector uint64
 	lanes.CommitteeVerifierConfig[datastore.AddressRef]
+	ProposalDriven bool
 }
 
 type ConfigureCommitteeVerifierAsDestInput struct {
 	ChainSelector uint64
 	lanes.CommitteeVerifierConfig[datastore.AddressRef]
+	ProposalDriven bool
 }
 
 var ConfigureCommitteeVerifierAsSource = operations.NewSequence(
@@ -70,31 +73,63 @@ var ConfigureCommitteeVerifierAsSource = operations.NewSequence(
 			})
 		}
 
-		for _, addressRef := range input.CommitteeVerifier {
-			address := contracts.HexToInstanceAddress(addressRef.Address)
+		pd := input.ProposalDriven
+		var proposalOutputs []contract.ExerciseOutput
 
-			_, err = operations.ExecuteOperation(b, committee_verifier.ApplyRemoteChainConfigUpdates, chain, contract.ChoiceInput[ccvs.ApplyRemoteChainConfigUpdates]{
-				InstanceAddress: address,
-				Args: ccvs.ApplyRemoteChainConfigUpdates{
+		for _, addressRef := range input.CommitteeVerifier {
+			address, err := dsutils.ToInstanceAddress(addressRef)
+			if err != nil {
+				return sequences.OnChainOutput{}, fmt.Errorf("committee verifier instance address: %w", err)
+			}
+
+			rcIn, err := cantonMCMSChoiceInput(
+				addressRef,
+				address,
+				ccvs.ApplyRemoteChainConfigUpdates{
 					RemoteChainConfigArgs: remoteChainConfigArgs,
 				},
-			})
+				pd,
+			)
+			if err != nil {
+				return sequences.OnChainOutput{}, fmt.Errorf("committee verifier ApplyRemoteChainConfigUpdates choice input: %w", err)
+			}
+			rcRep, err := operations.ExecuteOperation(b, committee_verifier.ApplyRemoteChainConfigUpdates, chain, rcIn)
 			if err != nil {
 				return sequences.OnChainOutput{}, fmt.Errorf("failed to apply remote chain configs to CommitteeVerifier at address %s: %w", address.Hex(), err)
 			}
+			proposalOutputs = appendProposalExercise(pd, proposalOutputs, rcRep.Output)
 
-			_, err = operations.ExecuteOperation(b, committee_verifier.ApplyAllowListUpdates, chain, contract.ChoiceInput[ccvs.ApplyAllowListUpdates]{
-				InstanceAddress: address,
-				Args: ccvs.ApplyAllowListUpdates{
+			alIn, err := cantonMCMSChoiceInput(
+				addressRef,
+				address,
+				ccvs.ApplyAllowListUpdates{
 					AllowListConfigArgsItems: allowListArgs,
 				},
-			})
+				pd,
+			)
+			if err != nil {
+				return sequences.OnChainOutput{}, fmt.Errorf("committee verifier ApplyAllowListUpdates choice input: %w", err)
+			}
+			alRep, err := operations.ExecuteOperation(b, committee_verifier.ApplyAllowListUpdates, chain, alIn)
 			if err != nil {
 				return sequences.OnChainOutput{}, fmt.Errorf("failed to apply allow list updates to CommitteeVerifier at address %s: %w", address.Hex(), err)
 			}
+			proposalOutputs = appendProposalExercise(pd, proposalOutputs, alRep.Output)
 		}
 
-		return sequences.OnChainOutput{}, nil
+		if !pd {
+			return sequences.OnChainOutput{}, nil
+		}
+
+		batchOp, err := contract.NewBatchOperationFromExercises(proposalOutputs)
+		if err != nil {
+			return sequences.OnChainOutput{}, fmt.Errorf("building MCMS batch for committee verifier (source): %w", err)
+		}
+		if len(batchOp.Transactions) == 0 {
+			return sequences.OnChainOutput{}, nil
+		}
+
+		return sequences.OnChainOutput{BatchOps: []mcms_types.BatchOperation{batchOp}}, nil
 	},
 )
 
@@ -127,21 +162,46 @@ var ConfigureCommitteeVerifierAsDest = operations.NewSequence(
 			})
 		}
 
-		for _, addressRef := range input.CommitteeVerifier {
-			address := contracts.HexToInstanceAddress(addressRef.Address)
+		pd := input.ProposalDriven
+		var proposalOutputs []contract.ExerciseOutput
 
-			_, err := operations.ExecuteOperation(b, committee_verifier.ApplySignatureConfigs, chain, contract.ChoiceInput[ccvs.ApplySignatureConfigs]{
-				InstanceAddress: address,
-				Args: ccvs.ApplySignatureConfigs{
+		for _, addressRef := range input.CommitteeVerifier {
+			address, err := dsutils.ToInstanceAddress(addressRef)
+			if err != nil {
+				return sequences.OnChainOutput{}, fmt.Errorf("committee verifier instance address: %w", err)
+			}
+
+			sigIn, err := cantonMCMSChoiceInput(
+				addressRef,
+				address,
+				ccvs.ApplySignatureConfigs{
 					SourceChainSelectorsToRemove: nil, // This doesn't support removing chains
 					SignatureConfigs:             signatureConfigs,
 				},
-			})
+				pd,
+			)
+			if err != nil {
+				return sequences.OnChainOutput{}, fmt.Errorf("committee verifier ApplySignatureConfigs choice input: %w", err)
+			}
+			sigRep, err := operations.ExecuteOperation(b, committee_verifier.ApplySignatureConfigs, chain, sigIn)
 			if err != nil {
 				return sequences.OnChainOutput{}, fmt.Errorf("failed to apply signature configs to CommitteeVerifier at address %s: %w", address.Hex(), err)
 			}
+			proposalOutputs = appendProposalExercise(pd, proposalOutputs, sigRep.Output)
 		}
 
-		return sequences.OnChainOutput{}, nil
+		if !pd {
+			return sequences.OnChainOutput{}, nil
+		}
+
+		batchOp, err := contract.NewBatchOperationFromExercises(proposalOutputs)
+		if err != nil {
+			return sequences.OnChainOutput{}, fmt.Errorf("building MCMS batch for committee verifier (dest): %w", err)
+		}
+		if len(batchOp.Transactions) == 0 {
+			return sequences.OnChainOutput{}, nil
+		}
+
+		return sequences.OnChainOutput{BatchOps: []mcms_types.BatchOperation{batchOp}}, nil
 	},
 )

@@ -49,6 +49,21 @@ func getRuntimeDataStore() datastore.DataStore {
 	return runtimeDataStore
 }
 
+// bindRuntimeDataStoreForConfigureLanes records ds for ConfigureChainForLanes.
+//
+// chainlink-ccip's configure-chains-for-lanes-from-topology resolves router, on-ramp,
+// fee quoter, and off-ramp via ChainFamily methods with deployment.Environment.DataStore
+// before ExecuteSequence; for Canton those calls hit this adapter first and populate the
+// runtime store consumed inside ConfigureChainForLanes. chainlink-deployments CCV may also
+// run the ccv-canton-set-runtime-datastore global pre-hook. ccip/devenv may call
+// SetRuntimeDataStore explicitly.
+func bindRuntimeDataStoreForConfigureLanes(ds datastore.DataStore) {
+	if ds == nil {
+		return
+	}
+	SetRuntimeDataStore(ds)
+}
+
 func DefaultCantonFeeQuoterDestChainConfig() lanes.FeeQuoterDestChainConfig {
 	return lanes.FeeQuoterDestChainConfig{
 		OverrideExistingConfig:      false,
@@ -206,18 +221,22 @@ func (a *CantonChainFamilyAdapter) AddressRefToBytes(ref datastore.AddressRef) (
 }
 
 func (a *CantonChainFamilyAdapter) GetOnRampAddress(ds datastore.DataStore, chainSelector uint64) ([]byte, error) {
+	bindRuntimeDataStoreForConfigureLanes(ds)
 	return findContractBytes(ds, chainSelector, datastore.ContractType(onramp.ContractType), onramp.Version)
 }
 
 func (a *CantonChainFamilyAdapter) GetOffRampAddress(ds datastore.DataStore, chainSelector uint64) ([]byte, error) {
+	bindRuntimeDataStoreForConfigureLanes(ds)
 	return findContractBytes(ds, chainSelector, datastore.ContractType(offramp.ContractType), offramp.Version)
 }
 
 func (a *CantonChainFamilyAdapter) GetFQAddress(ds datastore.DataStore, chainSelector uint64) ([]byte, error) {
+	bindRuntimeDataStoreForConfigureLanes(ds)
 	return findContractBytes(ds, chainSelector, datastore.ContractType(fee_quoter.ContractType), fee_quoter.Version)
 }
 
 func (a *CantonChainFamilyAdapter) GetRouterAddress(ds datastore.DataStore, chainSelector uint64) ([]byte, error) {
+	bindRuntimeDataStoreForConfigureLanes(ds)
 	return findContractBytes(ds, chainSelector, datastore.ContractType(global_config.ContractType), global_config.Version)
 }
 
@@ -226,6 +245,7 @@ func (a *CantonChainFamilyAdapter) GetTestRouter(ds datastore.DataStore, chainSe
 }
 
 func (a *CantonChainFamilyAdapter) ResolveExecutor(ds datastore.DataStore, chainSelector uint64, qualifier string) (string, error) {
+	bindRuntimeDataStoreForConfigureLanes(ds)
 	ref, err := findContractRef(ds, chainSelector, datastore.ContractType(executorop.ContractType), executorop.Version, qualifier)
 	if err != nil {
 		return "", err
