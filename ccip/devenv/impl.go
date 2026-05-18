@@ -54,6 +54,7 @@ import (
 	executor2 "github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/executor"
 	feequoterop "github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/fee_quoter"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/global_config"
+	lock_release_token_pool "github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/lock_release_token_pool"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/sender"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/token_admin_registry"
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
@@ -498,6 +499,11 @@ func (c *Chain) GetTokenExpansionConfigs(
 	return configs, nil
 }
 
+func isCantonLockReleasePoolDatastoreRef(ref datastore.AddressRef) bool {
+	return ref.Type == datastore.ContractType(devenvcommon.LockReleaseTokenPoolType) ||
+		ref.Type == datastore.ContractType(lock_release_token_pool.ContractType)
+}
+
 func (c *Chain) PostTokenDeploy(
 	env *deployment.Environment,
 	selector uint64,
@@ -505,7 +511,7 @@ func (c *Chain) PostTokenDeploy(
 ) error {
 	hasLockReleasePool := false
 	for _, ref := range deployedRefs {
-		if ref.Type == datastore.ContractType(devenvcommon.LockReleaseTokenPoolType) {
+		if isCantonLockReleasePoolDatastoreRef(ref) {
 			hasLockReleasePool = true
 			break
 		}

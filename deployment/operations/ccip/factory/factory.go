@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/smartcontractkit/chainlink-deployments-framework/datastore"
 	"github.com/smartcontractkit/chainlink-deployments-framework/deployment"
 	"github.com/smartcontractkit/go-daml/pkg/bind"
 	"github.com/smartcontractkit/go-daml/pkg/types"
@@ -142,6 +143,26 @@ var DeployExecutor = contract.NewExercise(contract.ExerciseParams[factorybinding
 	EncodeMethod: encodeDeployExecutor,
 })
 
+var DeployLockReleaseTokenPool = contract.NewExercise(contract.ExerciseParams[factorybindings.DeployLockReleaseTokenPool]{
+	Name:         "canton/ccip/factory/deploy_lock_release_token_pool",
+	Version:      Version,
+	Description:  "Deploys a LockReleaseTokenPool through the CCIPFactory",
+	ContractType: ContractType,
+	Template:     factorybindings.CCIPFactory{},
+	Method:       factorybindings.CCIPFactory{}.DeployLockReleaseTokenPool,
+	EncodeMethod: encodeDeployLockReleaseTokenPool,
+})
+
+var DeployRateLimiter = contract.NewExercise(contract.ExerciseParams[factorybindings.DeployRateLimiter]{
+	Name:         "canton/ccip/factory/deploy_rate_limiter",
+	Version:      Version,
+	Description:  "Deploys a token pool RateLimiter through the CCIPFactory",
+	ContractType: ContractType,
+	Template:     factorybindings.CCIPFactory{},
+	Method:       factorybindings.CCIPFactory{}.DeployRateLimiter,
+	EncodeMethod: encodeDeployRateLimiter,
+})
+
 func encodeDeployRMNRemote(args factorybindings.DeployRMNRemote) (*bind.EncodedChoice, error) {
 	return factoryEncoder.DeployRMNRemoteParams(factorybindings.DeployRMNRemoteParams{
 		InstanceId:      args.Contract.InstanceId,
@@ -274,4 +295,60 @@ func writeRequestedFinality(buf *bytes.Buffer, finality common.FinalityConfig) e
 	}
 
 	return nil
+}
+
+func encodeDeployLockReleaseTokenPool(args factorybindings.DeployLockReleaseTokenPool) (*bind.EncodedChoice, error) {
+	return factoryEncoder.DeployLockReleaseTokenPoolParams(factorybindings.DeployLockReleaseTokenPoolParams{
+		InstanceId:         args.Contract.InstanceId,
+		PoolOwner:          args.Contract.PoolOwner,
+		CcipOwner:          args.Contract.CcipOwner,
+		InstrumentId:       args.Contract.InstrumentId,
+		Decimals:           args.Contract.Decimals,
+		RateLimitAdmin:     args.Contract.RateLimitAdmin,
+		TokenAdminRegistry: args.Contract.Deps.TokenAdminRegistry,
+		FeeQuoter:          args.Contract.Deps.FeeQuoter,
+		RmnRemote:          args.Contract.Deps.RmnRemote,
+		PoolReceiveContext: args.Contract.PoolReceiveContext,
+		TransferTimeout:    args.Contract.TransferTimeout,
+	})
+}
+
+func encodeDeployRateLimiter(args factorybindings.DeployRateLimiter) (*bind.EncodedChoice, error) {
+	c := args.Contract
+	return factoryEncoder.DeployRateLimiterParams(factorybindings.DeployRateLimiterParams{
+		InstanceId:          c.InstanceId,
+		PoolInstanceId:      c.PoolInstanceId,
+		PoolOwner:           c.PoolOwner,
+		RemoteChainSelector: c.RemoteChainSelector,
+		Direction:           c.Direction,
+		Mode:                c.Mode,
+		IsEnabled:           c.IsEnabled,
+		Capacity:            c.Capacity,
+		Rate:                c.Rate,
+	})
+}
+
+// ResolveFromDatastore resolves the CCIPFactory address reference from the datastore.
+// It filters by chain selector, contract type, and version, preferring an unqualified ref.
+// Returns an error if no factory is found for the given chain.
+func ResolveFromDatastore(ds datastore.DataStore, chainSelector uint64) (datastore.AddressRef, error) {
+	matches := ds.Addresses().Filter(
+		datastore.AddressRefByChainSelector(chainSelector),
+		datastore.AddressRefByType(datastore.ContractType(ContractType)),
+		datastore.AddressRefByVersion(Version),
+	)
+
+	if len(matches) == 0 {
+		return datastore.AddressRef{}, fmt.Errorf("no CCIPFactory found for chain %d", chainSelector)
+	}
+
+	// Prefer unqualified factory ref
+	for _, ref := range matches {
+		if ref.Qualifier == "" {
+			return ref, nil
+		}
+	}
+
+	// Return first match if no unqualified ref found
+	return matches[0], nil
 }
