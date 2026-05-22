@@ -61,6 +61,7 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/global_config"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/sender"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/token_admin_registry"
+	dsutils "github.com/smartcontractkit/chainlink-canton/deployment/utils/datastore"
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 	oapiCommon "github.com/smartcontractkit/chainlink-canton/openapi/gen/eds/common"
 	"github.com/smartcontractkit/chainlink-canton/openapi/gen/scanProxy"
@@ -183,6 +184,7 @@ type Chain struct {
 	// Send setup prerequisites
 	routerAddress       contracts.InstanceAddress
 	senderAddress       contracts.InstanceAddress
+	senderRaw           contracts.RawInstanceAddress
 	registryAdmin       string
 	validatorAPIClients validatorAPIClients
 
@@ -319,9 +321,12 @@ func (c *Chain) PostDeployContractsForSelector(ctx context.Context, env *deploym
 		return nil, fmt.Errorf("resolve registry admin: %w", err)
 	}
 
-	feeQuoterAddress := contracts.HexToInstanceAddress(feeQuoterRef.Address)
+	feeQuoterRaw, err := dsutils.GetRawInstanceAddressFromAddressRef(feeQuoterRef)
+	if err != nil {
+		return nil, fmt.Errorf("resolve FeeQuoter raw address for chain %d: %w", selector, err)
+	}
 	_, err = operations.ExecuteOperation(env.OperationsBundle, feequoterop.ApplyPriceUpdatersUpdate, chain, contract.ChoiceInput[feequoter.ApplyPriceUpdatersUpdate]{
-		InstanceAddress: feeQuoterAddress,
+		RawInstanceAddress: feeQuoterRaw,
 		Args: feequoter.ApplyPriceUpdatersUpdate{
 			AddedPriceUpdaters: []types.PARTY{types.PARTY(participant.PartyID)},
 		},
@@ -331,7 +336,7 @@ func (c *Chain) PostDeployContractsForSelector(ctx context.Context, env *deploym
 	}
 
 	_, err = operations.ExecuteOperation(env.OperationsBundle, feequoterop.UpdatePrices, chain, contract.ChoiceInput[feequoter.UpdatePrices]{
-		InstanceAddress: feeQuoterAddress,
+		RawInstanceAddress: feeQuoterRaw,
 		Args: feequoter.UpdatePrices{
 			PriceUpdates: feequoter.PriceUpdates{
 				TokenPriceUpdates: []feequoter.TokenPriceUpdate{{
@@ -884,14 +889,18 @@ func (c *Chain) SetupSend(
 	if err != nil {
 		return fmt.Errorf("failed to deploy ccip sender contract: %w", err)
 	}
-	senderAddress := contracts.HexToInstanceAddress(out.Output.Address)
+	senderRaw, err := contracts.RawInstanceAddressFromString(out.Output.Labels.List()[0])
+	if err != nil {
+		return fmt.Errorf("parse ccip sender raw instance address: %w", err)
+	}
 	registryAdmin, err := testhelpers.ResolveRegistryAdmin(ctx, participant)
 	if err != nil {
 		return fmt.Errorf("resolve registry admin: %w", err)
 	}
 	c.registryAdmin = registryAdmin
 	c.routerAddress = routerAddress
-	c.senderAddress = senderAddress
+	c.senderAddress = senderRaw.InstanceAddress()
+	c.senderRaw = senderRaw
 
 	// Clients setup //
 	_, err = c.getValidatorAPIClients()
@@ -1202,7 +1211,7 @@ func (c *Chain) SendMessage(ctx context.Context, dest uint64, fields cciptestint
 
 	// Call CCIPSend
 	ccipSendReport, err := operations.ExecuteOperation(c.e.OperationsBundle, sender.Send, c.chain, contract.ChoiceInput[ccipsender.Send]{
-		InstanceAddress:    c.senderAddress,
+		RawInstanceAddress: c.senderRaw,
 		Args:               sendArgs,
 		MCMSEnabled:        false,
 		DisclosedContracts: contract.DisclosedContractsFromProto(disclosedContracts),

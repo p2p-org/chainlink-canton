@@ -186,8 +186,7 @@ func (d DeployFactoryAndSetOwnerToMCMS) Apply(e cldf.Environment, config CantonC
 
 	// ── Step 2: Encode SetOwnerToMCMS as MCMS proposal ──────────────────────
 	exerciseOut, err := operations.ExecuteOperation(e.OperationsBundle, factoryops.SetOwnerToMCMS, chain, opcontract.ChoiceInput[factorybindings.SetOwnerToMCMS]{
-		InstanceAddress:    factoryRawAddr.InstanceAddress(),
-		RawInstanceAddress: string(factoryRawAddr),
+		RawInstanceAddress: factoryRawAddr,
 		Args:               factorybindings.SetOwnerToMCMS{},
 		MCMSEnabled:        true,
 	})

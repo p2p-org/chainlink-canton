@@ -56,6 +56,14 @@ func (r RawInstanceAddress) Binding() chainlinkapi.RawInstanceAddress {
 	}
 }
 
+func RawInstanceAddressFromBinding(b chainlinkapi.RawInstanceAddress) (RawInstanceAddress, error) {
+	if b.Unpack == "" {
+		return "", nil
+	}
+
+	return RawInstanceAddressFromString(string(b.Unpack))
+}
+
 // InstanceAddressLength is the length in bytes of an InstanceAddress.
 const InstanceAddressLength = 32
 

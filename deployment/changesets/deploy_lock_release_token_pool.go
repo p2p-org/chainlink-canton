@@ -15,14 +15,13 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	factoryops "github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/factory"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/lock_release_token_pool"
-	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/token_admin_registry"
 	"github.com/smartcontractkit/chainlink-canton/deployment/sequences"
 	dsutils "github.com/smartcontractkit/chainlink-canton/deployment/utils/datastore"
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 )
 
 // DeployLockReleaseTokenPoolConfig is the config for deploying a LockReleaseTokenPool.
-// If TokenAdminRegistryInstanceAddress is set, the pool is also registered with that TAR in the same changeset.
+// When Deps.TokenAdminRegistry is set, the pool is also registered with that TAR in the same changeset.
 type DeployLockReleaseTokenPoolConfig struct {
 	CcipOwner    string
 	PoolOwner    string
@@ -43,8 +42,6 @@ type DeployLockReleaseTokenPoolConfig struct {
 	TokenTransferFeeConfigs map[types.NUMERIC]lockreleasetokenpool.TokenTransferFeeConfig2
 	// Optional; zero-value deps if not provided.
 	Deps lockreleasetokenpool.LockReleaseTokenPoolDeps
-	// If set, the pool is registered with this TokenAdminRegistry (ProposeAdministrator, AcceptAdminRole, SetPool) in the same changeset.
-	TokenAdminRegistryInstanceAddress contracts.InstanceAddress
 }
 
 var _ cldf.ChangeSetV2[CantonCSDeps[DeployLockReleaseTokenPoolConfig]] = DeployLockReleaseTokenPool{}
@@ -116,8 +113,7 @@ func (d DeployLockReleaseTokenPool) Apply(e cldf.Environment, config CantonCSDep
 		}
 		poolOwner := types.PARTY(cfg.PoolOwner)
 		_, err = cld_ops.ExecuteOperation(e.OperationsBundle, factoryops.DeployLockReleaseTokenPool, chain, contract.ChoiceInput[factorybindings.DeployLockReleaseTokenPool]{
-			InstanceAddress:    factoryRaw.InstanceAddress(),
-			RawInstanceAddress: factoryRaw.String(),
+			RawInstanceAddress: factoryRaw,
 			MCMSEnabled:        true,
 			Args: factorybindings.DeployLockReleaseTokenPool{
 				Contract: lockreleasetokenpool.LockReleaseTokenPool{
@@ -185,22 +181,10 @@ func (d DeployLockReleaseTokenPool) Apply(e cldf.Environment, config CantonCSDep
 		return cldf.ChangesetOutput{}, fmt.Errorf("failed to save deployed LockReleaseTokenPool contract address: %w", err)
 	}
 
-	if cfg.TokenAdminRegistryInstanceAddress != (contracts.InstanceAddress{}) {
-		tarRef, err := e.DataStore.Addresses().Get(datastore.NewAddressRefKey(
-			config.ChainSelector,
-			datastore.ContractType(token_admin_registry.ContractType),
-			token_admin_registry.Version,
-			"",
-		))
-		if err != nil {
-			return cldf.ChangesetOutput{}, fmt.Errorf("resolve token admin registry: %w", err)
-		}
-		tarRaw, err := dsutils.GetRawInstanceAddressFromAddressRef(tarRef)
-		if err != nil {
-			return cldf.ChangesetOutput{}, fmt.Errorf("resolve token admin registry raw address: %w", err)
-		}
+	if tarRaw, err := contracts.RawInstanceAddressFromBinding(cfg.Deps.TokenAdminRegistry); err != nil {
+		return cldf.ChangesetOutput{}, fmt.Errorf("parse token admin registry from deps: %w", err)
+	} else if tarRaw != "" {
 		regInput := sequences.RegisterTokenPoolInput{
-			TokenAdminRegistryInstanceAddress:    contracts.HexToInstanceAddress(tarRef.Address),
 			TokenAdminRegistryRawInstanceAddress: tarRaw,
 			InstrumentId:                         cfg.InstrumentId,
 			CcipParty:                            cfg.CcipOwner,

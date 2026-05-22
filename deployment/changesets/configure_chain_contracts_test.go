@@ -83,7 +83,7 @@ func TestConfigureGlobalConfig_DirectExecution(t *testing.T) {
 		ChainSelector: chainsel.CANTON_LOCALNET.Selector,
 		Participant:   0,
 		Config: ConfigureGlobalConfigConfig{
-			InstanceAddress: gcAddr.InstanceAddress(),
+			RawInstanceAddress: gcAddr,
 			DestChainUpdates: []common.DestChainConfigArgs{
 				makeDestChainConfig("999", ccvAddr),
 			},
@@ -117,8 +117,7 @@ func TestConfigureGlobalConfig_MCMSProposal(t *testing.T) {
 		ChainSelector: chainsel.CANTON_LOCALNET.Selector,
 		Participant:   0,
 		Config: ConfigureGlobalConfigConfig{
-			InstanceAddress:    gcRawAddr.InstanceAddress(),
-			RawInstanceAddress: gcRawAddr.String(),
+			RawInstanceAddress: gcRawAddr,
 			DestChainUpdates: []common.DestChainConfigArgs{{
 				DestChainSelector:         "999",
 				IsEnabled:                 true,

@@ -435,8 +435,6 @@ func TestLnRTokenPool_FullSendFlow(t *testing.T) {
 				RmnRemote:          rmnRemoteAddress.Binding(),
 				FeeQuoter:          feeQuoterAddress.Binding(),
 			},
-			// By setting the TAR address, the CS will automatically register the newly deployed pool with the TAR
-			TokenAdminRegistryInstanceAddress: tokenAdminRegistryAddress.InstanceAddress(),
 		},
 	})
 	require.NoError(t, err, "failed to deploy lock release token pool via changeset")

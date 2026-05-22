@@ -18,8 +18,8 @@ import (
 
 	"github.com/smartcontractkit/chainlink-canton/bindings"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/ccvs"
-	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/committee_verifier"
+	cantonds "github.com/smartcontractkit/chainlink-canton/deployment/utils/datastore"
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 	internalparse "github.com/smartcontractkit/chainlink-canton/internal/parse"
 )
@@ -64,7 +64,10 @@ func (a *CantonCommitteeVerifierOnchain) ScanCommitteeStates(ctx context.Context
 
 	states := make([]*adapters.CommitteeState, 0, len(refs))
 	for _, ref := range refs {
-		instanceAddr := contracts.HexToInstanceAddress(ref.Address)
+		instanceAddr, err := cantonds.ToInstanceAddress(ref)
+		if err != nil {
+			return nil, fmt.Errorf("resolve CommitteeVerifier instance address for %s on chain %d: %w", ref.Address, chainSelector, err)
+		}
 		active, err := contract.FindActiveContractByInstanceAddress(
 			ctx,
 			participant.LedgerServices.State,

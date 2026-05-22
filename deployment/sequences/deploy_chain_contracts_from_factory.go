@@ -296,12 +296,7 @@ func newChoiceInput[ARGS any](
 	args ARGS,
 	proposalDriven bool,
 ) contract.ChoiceInput[ARGS] {
-	return contract.ChoiceInput[ARGS]{
-		InstanceAddress:    rawInstanceAddress.InstanceAddress(),
-		RawInstanceAddress: rawInstanceAddress.String(),
-		Args:               args,
-		MCMSEnabled:        proposalDriven,
-	}
+	return contract.NewChoiceInput(rawInstanceAddress, args, proposalDriven)
 }
 
 func ensureInstanceID(current types.TEXT, prefix string) (contracts.InstanceID, error) {

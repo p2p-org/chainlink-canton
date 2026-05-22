@@ -70,8 +70,7 @@ func (c *CantonCurseAdapter) Curse() *cldf_ops.Sequence[fastcurse.CurseInput, se
 
 			for _, subject := range in.Subjects {
 				report, err := cldf_ops.ExecuteOperation(b, rmn_remote.Curse, chain, contract.ChoiceInput[rmn.Curse]{
-					InstanceAddress:    rmnRemoteRaw.InstanceAddress(),
-					RawInstanceAddress: rmnRemoteRaw.String(),
+					RawInstanceAddress: rmnRemoteRaw,
 					MCMSEnabled:        mcmsEnabled,
 					Args: rmn.Curse{
 						Subject: types.TEXT(hex.EncodeToString(subject[:])),
@@ -117,8 +116,12 @@ func (c *CantonCurseAdapter) Initialize(e deployment.Environment, selector uint6
 	if err != nil {
 		return fmt.Errorf("rmn remote raw instance address: %w", err)
 	}
+	globalConfigAddr, err := dsutils.ToInstanceAddress(globalConfigRef)
+	if err != nil {
+		return fmt.Errorf("global config instance address: %w", err)
+	}
 	c.rmnRemoteRawCache[selector] = rmnRemoteRaw
-	c.globalConfigCache[selector] = contracts.HexToInstanceAddress(globalConfigRef.Address)
+	c.globalConfigCache[selector] = globalConfigAddr
 
 	return nil
 }
@@ -282,8 +285,7 @@ func (c *CantonCurseAdapter) Uncurse() *cldf_ops.Sequence[fastcurse.CurseInput, 
 
 			for _, subject := range in.Subjects {
 				report, err := cldf_ops.ExecuteOperation(b, rmn_remote.Uncurse, chain, contract.ChoiceInput[rmn.Uncurse]{
-					InstanceAddress:    rmnRemoteRaw.InstanceAddress(),
-					RawInstanceAddress: rmnRemoteRaw.String(),
+					RawInstanceAddress: rmnRemoteRaw,
 					MCMSEnabled:        mcmsEnabled,
 					Args: rmn.Uncurse{
 						Subject: types.TEXT(hex.EncodeToString(subject[:])),

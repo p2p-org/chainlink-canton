@@ -49,12 +49,13 @@ var (
 )
 
 type configuredCantonTokenPool struct {
-	InstrumentId       splice_api_token_holding_v1.InstrumentId
-	InstanceId         types.TEXT
-	CcipOwner          types.PARTY
-	PoolOwner          types.PARTY
-	Decimals           types.INT64
-	RemoteChainConfigs map[types.NUMERIC]any
+	InstrumentId         splice_api_token_holding_v1.InstrumentId
+	InstanceId           types.TEXT
+	CcipOwner            types.PARTY
+	PoolOwner            types.PARTY
+	Decimals             types.INT64
+	RemoteChainConfigs   map[types.NUMERIC]any
+	TokenAdminRegistry   contracts.RawInstanceAddress
 }
 
 type tokenPoolChainUpdate struct {
@@ -104,23 +105,12 @@ var ConfigureTokenForTransfers = operations.NewSequence(
 		if err != nil {
 			return ccipsequences.OnChainOutput{}, err
 		}
+		if parsedPool.TokenAdminRegistry == "" {
+			return ccipsequences.OnChainOutput{}, fmt.Errorf("token pool is missing token admin registry deps")
+		}
 
-		registryRef, err := input.ExistingDataStore.Addresses().Get(datastore.NewAddressRefKey(
-			input.ChainSelector,
-			datastore.ContractType(token_admin_registry.ContractType),
-			token_admin_registry.Version,
-			"",
-		))
-		if err != nil {
-			return ccipsequences.OnChainOutput{}, fmt.Errorf("resolve token admin registry: %w", err)
-		}
-		tarRaw, err := dsutils.GetRawInstanceAddressFromAddressRef(registryRef)
-		if err != nil {
-			return ccipsequences.OnChainOutput{}, fmt.Errorf("resolve token admin registry raw address: %w", err)
-		}
 		regOut, err := operations.ExecuteSequence(b, RegisterTokenPool, cantonChain, RegisterTokenPoolInput{
-			TokenAdminRegistryInstanceAddress:    contracts.HexToInstanceAddress(registryRef.Address),
-			TokenAdminRegistryRawInstanceAddress: tarRaw,
+			TokenAdminRegistryRawInstanceAddress: parsedPool.TokenAdminRegistry,
 			InstrumentId:                         parsedPool.InstrumentId,
 			PoolInstanceID:                       string(parsedPool.InstanceId),
 			CcipParty:                            string(parsedPool.CcipOwner),
@@ -314,8 +304,7 @@ var ConfigureTokenForTransfers = operations.NewSequence(
 				})
 			}
 			applyReport, err := operations.ExecuteOperation(b, lock_release_token_pool.ApplyChainUpdates, cantonChain, contract.ChoiceInput[lockreleasetokenpool.ApplyChainUpdates]{
-				InstanceAddress:    poolRaw.InstanceAddress(),
-				RawInstanceAddress: poolRaw.String(),
+				RawInstanceAddress: poolRaw,
 				MCMSEnabled:        mcmsEnabled,
 				Args: lockreleasetokenpool.ApplyChainUpdates{
 					RemoteChainSelectorsToRemove: []types.NUMERIC{},
@@ -348,8 +337,7 @@ var ConfigureTokenForTransfers = operations.NewSequence(
 				})
 			}
 			applyReport, err := operations.ExecuteOperation(b, burn_mint_token_pool.ApplyChainUpdates, cantonChain, contract.ChoiceInput[burnminttokenpool.ApplyChainUpdates]{
-				InstanceAddress:    poolRaw.InstanceAddress(),
-				RawInstanceAddress: poolRaw.String(),
+				RawInstanceAddress: poolRaw,
 				MCMSEnabled:        mcmsEnabled,
 				Args: burnminttokenpool.ApplyChainUpdates{
 					RemoteChainSelectorsToRemove: []types.NUMERIC{},
@@ -494,7 +482,7 @@ var DeployTokenPoolForToken = operations.NewSequence(
 			return ref, raw, nil
 		}
 
-		tokenAdminRegistryRef, tokenAdminRegistryRaw, err := resolveRefAndRaw("token admin registry", datastore.ContractType(token_admin_registry.ContractType), token_admin_registry.Version)
+		_, tokenAdminRegistryRaw, err := resolveRefAndRaw("token admin registry", datastore.ContractType(token_admin_registry.ContractType), token_admin_registry.Version)
 		if err != nil {
 			return ccipsequences.OnChainOutput{}, err
 		}
@@ -540,7 +528,6 @@ var DeployTokenPoolForToken = operations.NewSequence(
 		rawPoolAddr := poolInstanceID.RawInstanceAddress(poolOwner)
 
 		regOut, err := operations.ExecuteSequence(b, RegisterTokenPool, cantonChain, RegisterTokenPoolInput{
-			TokenAdminRegistryInstanceAddress:    contracts.HexToInstanceAddress(tokenAdminRegistryRef.Address),
 			TokenAdminRegistryRawInstanceAddress: tokenAdminRegistryRaw,
 			InstrumentId:                         instrumentID,
 			PoolInstanceID:                       rawPoolAddr.InstanceID(),
@@ -842,6 +829,10 @@ func loadConfiguredCantonTokenPool(
 		for numeric, config := range parsedPool.RemoteChainConfigs {
 			remoteChainConfigsAny[numeric] = any(config)
 		}
+		tarRaw, err := contracts.RawInstanceAddressFromBinding(parsedPool.Deps.TokenAdminRegistry)
+		if err != nil {
+			return nil, fmt.Errorf("parse lock/release pool token admin registry: %w", err)
+		}
 
 		return &configuredCantonTokenPool{
 			InstrumentId:       parsedPool.InstrumentId,
@@ -850,6 +841,7 @@ func loadConfiguredCantonTokenPool(
 			PoolOwner:          parsedPool.PoolOwner,
 			Decimals:           parsedPool.Decimals,
 			RemoteChainConfigs: remoteChainConfigsAny,
+			TokenAdminRegistry: tarRaw,
 		}, nil
 	case burnMintPoolType:
 		activePool, err := contract.FindActiveContractByInstanceAddress(
@@ -871,6 +863,10 @@ func loadConfiguredCantonTokenPool(
 		for numeric, config := range parsedPool.RemoteChainConfigs {
 			remoteChainConfigsAny[numeric] = any(config)
 		}
+		tarRaw, err := contracts.RawInstanceAddressFromBinding(parsedPool.Deps.TokenAdminRegistry)
+		if err != nil {
+			return nil, fmt.Errorf("parse burn/mint pool token admin registry: %w", err)
+		}
 
 		return &configuredCantonTokenPool{
 			InstrumentId:       parsedPool.InstrumentId,
@@ -879,6 +875,7 @@ func loadConfiguredCantonTokenPool(
 			PoolOwner:          parsedPool.PoolOwner,
 			Decimals:           parsedPool.Decimals,
 			RemoteChainConfigs: remoteChainConfigsAny,
+			TokenAdminRegistry: tarRaw,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported Canton token pool type %q", logicalPoolType)

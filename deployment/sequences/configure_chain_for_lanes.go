@@ -128,8 +128,7 @@ func configureLaneLegAsSource(b operations.Bundle, deps chain.BlockChains, input
 			defaultOutboundCCVs = append(defaultOutboundCCVs, outboundCCV.Binding())
 		}
 		destChainConfigReport, err := operations.ExecuteOperation(b, global_config.ApplyDestChainConfigUpdates, chain, contract.ChoiceInput[common.ApplyDestChainConfigUpdates]{
-			InstanceAddress:    globalConfigRaw.InstanceAddress(),
-			RawInstanceAddress: globalConfigRaw.String(),
+			RawInstanceAddress: globalConfigRaw,
 			MCMSEnabled:        mcmsEnabled,
 			Args: common.ApplyDestChainConfigUpdates{
 				DestChainConfigUpdates: []common.DestChainConfigArgs{
@@ -162,8 +161,7 @@ func configureLaneLegAsSource(b operations.Bundle, deps chain.BlockChains, input
 			return sequences.OnChainOutput{}, fmt.Errorf("getting default executor raw instance address: %w", err)
 		}
 		executorReport, err := operations.ExecuteOperation(b, executor2.ApplyDestChainUpdates, chain, contract.ChoiceInput[executor.ApplyDestChainUpdates]{
-			InstanceAddress:    executorRaw.InstanceAddress(),
-			RawInstanceAddress: executorRaw.String(),
+			RawInstanceAddress: executorRaw,
 			MCMSEnabled:        mcmsEnabled,
 			Args: executor.ApplyDestChainUpdates{
 				DestChainSelectorsToRemove: nil,
@@ -187,8 +185,7 @@ func configureLaneLegAsSource(b operations.Bundle, deps chain.BlockChains, input
 
 		// FeeQuoter - Dest Chain Config
 		feeQuoterDestConfigReport, err := operations.ExecuteOperation(b, feequoterop.ApplyDestChainConfigUpdates, chain, contract.ChoiceInput[feequoter.ApplyFeeQuoterDestChainConfigUpdates]{
-			InstanceAddress:    feeQuoterRaw.InstanceAddress(),
-			RawInstanceAddress: feeQuoterRaw.String(),
+			RawInstanceAddress: feeQuoterRaw,
 			MCMSEnabled:        mcmsEnabled,
 			Args: feequoter.ApplyFeeQuoterDestChainConfigUpdates{
 				DestChainConfigArgs: []feequoter.FeeQuoterDestChainConfigArgs{
@@ -218,7 +215,7 @@ func configureLaneLegAsSource(b operations.Bundle, deps chain.BlockChains, input
 
 		if !mcmsEnabled {
 			_, err = operations.ExecuteOperation(b, feequoterop.ApplyPriceUpdatersUpdate, chain, contract.ChoiceInput[feequoter.ApplyPriceUpdatersUpdate]{
-				InstanceAddress: feeQuoterRaw.InstanceAddress(),
+				RawInstanceAddress: feeQuoterRaw,
 				Args: feequoter.ApplyPriceUpdatersUpdate{
 					AddedPriceUpdaters:   []types.PARTY{types.PARTY(participant.PartyID)},
 					RemovedPriceUpdaters: nil,
@@ -236,8 +233,7 @@ func configureLaneLegAsSource(b operations.Bundle, deps chain.BlockChains, input
 
 		// FeeQuoter - Update prices.
 		updatePricesReport, err := operations.ExecuteOperation(b, feequoterop.UpdatePrices, chain, contract.ChoiceInput[feequoter.UpdatePrices]{
-			InstanceAddress:    feeQuoterRaw.InstanceAddress(),
-			RawInstanceAddress: feeQuoterRaw.String(),
+			RawInstanceAddress: feeQuoterRaw,
 			MCMSEnabled:        mcmsEnabled,
 			Args: feequoter.UpdatePrices{
 				PriceUpdates: feequoter.PriceUpdates{
@@ -327,8 +323,7 @@ var ConfigureLaneLegAsDest = operations.NewSequence(
 			types.TEXT(hex.EncodeToString(gethcommon.LeftPadBytes(sourceChain.OnRamp, 32))),
 		}
 		sourceChainConfigReport, err := operations.ExecuteOperation(b, global_config.ApplySourceChainConfigUpdates, chain, contract.ChoiceInput[common.ApplySourceChainConfigUpdates]{
-			InstanceAddress:    globalConfigRaw.InstanceAddress(),
-			RawInstanceAddress: globalConfigRaw.String(),
+			RawInstanceAddress: globalConfigRaw,
 			MCMSEnabled:        mcmsEnabled,
 			Args: common.ApplySourceChainConfigUpdates{
 				SourceChainConfigUpdates: []common.SourceChainConfigArgs{

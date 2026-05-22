@@ -15,8 +15,8 @@ import (
 	"github.com/smartcontractkit/go-daml/pkg/types"
 
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/ccvs"
-	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/committee_verifier"
+	dsutils "github.com/smartcontractkit/chainlink-canton/deployment/utils/datastore"
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 )
 
@@ -71,26 +71,29 @@ var ConfigureCommitteeVerifierAsSource = operations.NewSequence(
 		}
 
 		for _, addressRef := range input.CommitteeVerifier {
-			address := contracts.HexToInstanceAddress(addressRef.Address)
+			ccvRaw, err := dsutils.GetRawInstanceAddressFromAddressRef(addressRef)
+			if err != nil {
+				return sequences.OnChainOutput{}, fmt.Errorf("committee verifier raw instance address: %w", err)
+			}
 
 			_, err = operations.ExecuteOperation(b, committee_verifier.ApplyRemoteChainConfigUpdates, chain, contract.ChoiceInput[ccvs.ApplyRemoteChainConfigUpdates]{
-				InstanceAddress: address,
+				RawInstanceAddress: ccvRaw,
 				Args: ccvs.ApplyRemoteChainConfigUpdates{
 					RemoteChainConfigArgs: remoteChainConfigArgs,
 				},
 			})
 			if err != nil {
-				return sequences.OnChainOutput{}, fmt.Errorf("failed to apply remote chain configs to CommitteeVerifier at address %s: %w", address.Hex(), err)
+				return sequences.OnChainOutput{}, fmt.Errorf("failed to apply remote chain configs to CommitteeVerifier at address %s: %w", ccvRaw.InstanceAddress().Hex(), err)
 			}
 
 			_, err = operations.ExecuteOperation(b, committee_verifier.ApplyAllowListUpdates, chain, contract.ChoiceInput[ccvs.ApplyAllowListUpdates]{
-				InstanceAddress: address,
+				RawInstanceAddress: ccvRaw,
 				Args: ccvs.ApplyAllowListUpdates{
 					AllowListConfigArgsItems: allowListArgs,
 				},
 			})
 			if err != nil {
-				return sequences.OnChainOutput{}, fmt.Errorf("failed to apply allow list updates to CommitteeVerifier at address %s: %w", address.Hex(), err)
+				return sequences.OnChainOutput{}, fmt.Errorf("failed to apply allow list updates to CommitteeVerifier at address %s: %w", ccvRaw.InstanceAddress().Hex(), err)
 			}
 		}
 
@@ -128,17 +131,20 @@ var ConfigureCommitteeVerifierAsDest = operations.NewSequence(
 		}
 
 		for _, addressRef := range input.CommitteeVerifier {
-			address := contracts.HexToInstanceAddress(addressRef.Address)
+			ccvRaw, err := dsutils.GetRawInstanceAddressFromAddressRef(addressRef)
+			if err != nil {
+				return sequences.OnChainOutput{}, fmt.Errorf("committee verifier raw instance address: %w", err)
+			}
 
-			_, err := operations.ExecuteOperation(b, committee_verifier.ApplySignatureConfigs, chain, contract.ChoiceInput[ccvs.ApplySignatureConfigs]{
-				InstanceAddress: address,
+			_, err = operations.ExecuteOperation(b, committee_verifier.ApplySignatureConfigs, chain, contract.ChoiceInput[ccvs.ApplySignatureConfigs]{
+				RawInstanceAddress: ccvRaw,
 				Args: ccvs.ApplySignatureConfigs{
 					SourceChainSelectorsToRemove: nil, // This doesn't support removing chains
 					SignatureConfigs:             signatureConfigs,
 				},
 			})
 			if err != nil {
-				return sequences.OnChainOutput{}, fmt.Errorf("failed to apply signature configs to CommitteeVerifier at address %s: %w", address.Hex(), err)
+				return sequences.OnChainOutput{}, fmt.Errorf("failed to apply signature configs to CommitteeVerifier at address %s: %w", ccvRaw.InstanceAddress().Hex(), err)
 			}
 		}
 

@@ -63,7 +63,7 @@ func (c *Chain) DeployPerPartyRouter(ctx context.Context, participant canton.Par
 	routerInstanceID := contracts.InstanceID("test-router")
 	// Ignore errors, since the router might already exist if this function is called multiple times for the same party. In that case we just want to return the existing router's address.
 	_, _ = operations.ExecuteOperation(c.e.OperationsBundle, per_party_router_factory.CreateRouter, c.chain, contract.ChoiceInput[perpartyrouter.CreateRouter]{
-		InstanceAddress: perPartyRouterFactoryDisclosure.Address.InstanceAddress(),
+		RawInstanceAddress: perPartyRouterFactoryDisclosure.Address,
 		Args: perpartyrouter.CreateRouter{
 			PartyOwner: types.PARTY(partyId),
 			InstanceId: types.TEXT(routerInstanceID.String()),
@@ -82,10 +82,10 @@ func (c *Chain) DeployPerPartyRouter(ctx context.Context, participant canton.Par
 	return routerAddress, nil
 }
 
-func (c *Chain) DeployCCIPReceiver(partyId string, receiverFinality int64) (contracts.InstanceAddress, error) {
+func (c *Chain) DeployCCIPReceiver(partyId string, receiverFinality int64) (contracts.RawInstanceAddress, error) {
 	finalityConfig, err := encodeReceiverFinalityConfig(receiverFinality)
 	if err != nil {
-		return contracts.InstanceAddress{}, fmt.Errorf("failed to encode receiver finality config: %w", err)
+		return "", fmt.Errorf("failed to encode receiver finality config: %w", err)
 	}
 
 	// Deploy receiver contract
@@ -101,11 +101,14 @@ func (c *Chain) DeployCCIPReceiver(partyId string, receiverFinality int64) (cont
 		OwnerParty: types.PARTY(partyId),
 	})
 	if err != nil {
-		return contracts.InstanceAddress{}, fmt.Errorf("failed to deploy receiver contract: %w", err)
+		return "", fmt.Errorf("failed to deploy receiver contract: %w", err)
 	}
-	receiverAddress := contracts.HexToInstanceAddress(out.Output.Address)
+	receiverRaw, err := contracts.RawInstanceAddressFromString(out.Output.Labels.List()[0])
+	if err != nil {
+		return "", fmt.Errorf("parse receiver raw instance address: %w", err)
+	}
 
-	return receiverAddress, nil
+	return receiverRaw, nil
 }
 
 // ManuallyExecuteMessage implements cciptestinterfaces.CCIP17.
@@ -127,10 +130,11 @@ func (c *Chain) ManuallyExecuteMessage(ctx context.Context, message protocol.Mes
 	c.logger.Debug().Str("RouterAddress", routerAddress.String()).Msg("Deployed PerPartyRouter")
 
 	// Deploy CCIPReceiver contract
-	receiverAddress, err := c.DeployCCIPReceiver(executingParty, int64(message.Finality))
+	receiverRaw, err := c.DeployCCIPReceiver(executingParty, int64(message.Finality))
 	if err != nil {
 		return cciptestinterfaces.ExecutionStateChangedEvent{}, fmt.Errorf("failed to deploy CCIPReceiver contract: %w", err)
 	}
+	receiverAddress := receiverRaw.InstanceAddress()
 	c.logger.Debug().Str("ReceiverAddress", receiverAddress.String()).Msg("Deployed CCIPReceiver")
 
 	encodedMessage, err := message.Encode()
@@ -208,7 +212,7 @@ func (c *Chain) ManuallyExecuteMessage(ctx context.Context, message protocol.Mes
 		Msg("Executing message...")
 
 	executeReport, err := operations.ExecuteOperation(c.e.OperationsBundle, receiver.Execute, c.chain, contract.ChoiceInput[ccipreceiver.Execute]{
-		InstanceAddress:    receiverAddress,
+		RawInstanceAddress: receiverRaw,
 		Args:               executeArgs,
 		DisclosedContracts: contract.DisclosedContractsFromProto(disclosedContracts),
 	})

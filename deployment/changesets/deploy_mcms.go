@@ -143,7 +143,7 @@ var deployAndConfigureMCMSSequence = operations.NewSequence(
 			}
 
 			_, err = operations.ExecuteOperation(b, mcmsops.SetConfig, deps, opcontract.ChoiceInput[mcmsbindings.SetConfig]{
-				InstanceAddress: rawInstanceAddress.InstanceAddress(),
+				RawInstanceAddress: rawInstanceAddress,
 				Args: mcmsbindings.SetConfig{
 					TargetRole:      roleConfig.Role,
 					NewSigners:      groupConfig.Signers,

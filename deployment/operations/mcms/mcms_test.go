@@ -95,7 +95,7 @@ func TestMCMSOps(t *testing.T) {
 		RootMetadata: mcms.RootMetadata{},
 	}
 
-	var mcmsInstanceAddress contracts.InstanceAddress
+	var mcmsRaw contracts.RawInstanceAddress
 	t.Run("Deploy", func(t *testing.T) {
 		result, err := cld_ops.ExecuteOperation(bundle, Deploy, *cantonChain, contract.DeployInput[mcms.MCMS]{
 			Template: mcms.MCMS{
@@ -112,8 +112,9 @@ func TestMCMSOps(t *testing.T) {
 			OwnerParty: types.PARTY(primaryParty),
 		})
 		require.NoError(t, err, "failed to deploy MCMS")
-		mcmsInstanceAddress = contracts.HexToInstanceAddress(result.Output.Address)
-		t.Logf("Deployed MCMS, InstanceAddress: %s", mcmsInstanceAddress.String())
+		mcmsRaw, err = contracts.RawInstanceAddressFromString(result.Output.Labels.List()[0])
+		require.NoError(t, err)
+		t.Logf("Deployed MCMS, raw address: %s", mcmsRaw)
 	})
 
 	t.Run("SetConfig", func(t *testing.T) {
@@ -146,7 +147,7 @@ func TestMCMSOps(t *testing.T) {
 		newGroupQuorums[0] = types.INT64(3) // 3-of-4 for group 0
 
 		result, err := cld_ops.ExecuteOperation(bundle, SetConfig, *cantonChain, contract.ChoiceInput[mcms.SetConfig]{
-			InstanceAddress: mcmsInstanceAddress,
+			RawInstanceAddress: mcmsRaw,
 			Args: mcms.SetConfig{
 				TargetRole:      mcms.RoleProposer, // Target the proposer role
 				NewSigners:      newSigners,

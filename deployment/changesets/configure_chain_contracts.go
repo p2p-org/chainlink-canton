@@ -32,9 +32,7 @@ type MCMSTimelockConfig struct {
 
 // ConfigureGlobalConfigConfig holds the parameters for ConfigureGlobalConfig changeset.
 type ConfigureGlobalConfigConfig struct {
-	InstanceAddress contracts.InstanceAddress
-	// RawInstanceAddress is the "instanceId@partyId" format needed for MCMS proposals.
-	RawInstanceAddress string
+	RawInstanceAddress contracts.RawInstanceAddress
 	DestChainUpdates   []common.DestChainConfigArgs
 	SourceChainUpdates []common.SourceChainConfigArgs
 	TimelockConfig     *MCMSTimelockConfig
@@ -64,7 +62,6 @@ func (d ConfigureGlobalConfig) Apply(e cldf.Environment, config CantonCSDeps[Con
 
 	if len(config.Config.DestChainUpdates) > 0 {
 		out, err := operations.ExecuteOperation(e.OperationsBundle, global_config.ApplyDestChainConfigUpdates, chain, opcontract.ChoiceInput[common.ApplyDestChainConfigUpdates]{
-			InstanceAddress:    config.Config.InstanceAddress,
 			RawInstanceAddress: config.Config.RawInstanceAddress,
 			Args: common.ApplyDestChainConfigUpdates{
 				DestChainConfigUpdates: config.Config.DestChainUpdates,
@@ -79,7 +76,6 @@ func (d ConfigureGlobalConfig) Apply(e cldf.Environment, config CantonCSDeps[Con
 
 	if len(config.Config.SourceChainUpdates) > 0 {
 		out, err := operations.ExecuteOperation(e.OperationsBundle, global_config.ApplySourceChainConfigUpdates, chain, opcontract.ChoiceInput[common.ApplySourceChainConfigUpdates]{
-			InstanceAddress:    config.Config.InstanceAddress,
 			RawInstanceAddress: config.Config.RawInstanceAddress,
 			Args: common.ApplySourceChainConfigUpdates{
 				SourceChainConfigUpdates: config.Config.SourceChainUpdates,

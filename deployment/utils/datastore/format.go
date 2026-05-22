@@ -9,12 +9,14 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 )
 
+// ToInstanceAddress derives the hashed instance address from the raw label stored on the ref.
 func ToInstanceAddress(ref datastore.AddressRef) (contracts.InstanceAddress, error) {
-	if ref.Address == "" {
-		return contracts.InstanceAddress{}, fmt.Errorf("address is empty in ref: %s", datastore2.SprintRef(ref))
+	raw, err := GetRawInstanceAddressFromAddressRef(ref)
+	if err != nil {
+		return contracts.InstanceAddress{}, fmt.Errorf("resolve raw instance address from ref %s: %w", datastore2.SprintRef(ref), err)
 	}
 
-	return contracts.HexToInstanceAddress(ref.Address), nil
+	return raw.InstanceAddress(), nil
 }
 
 func ToInstanceAddressBytes(ref datastore.AddressRef) ([]byte, error) {

@@ -19,6 +19,7 @@ import (
 	"github.com/smartcontractkit/go-daml/pkg/types"
 	"github.com/stretchr/testify/require"
 
+	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/lockreleasetokenpool"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/tokenadminregistry"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/splice/splice_api_token_holding_v1"
 
@@ -77,7 +78,10 @@ func TestDeployTokenPool(t *testing.T) {
 		OwnerParty: types.PARTY(party),
 	})
 	require.NoError(t, err, "deploy TAR")
-	require.NotEmpty(t, tarAddrRef.Output.Address, "TAR address")
+	require.NotEmpty(t, tarAddrRef.Output.Labels.List(), "TAR raw label")
+
+	tarRaw, err := contracts.RawInstanceAddressFromString(tarAddrRef.Output.Labels.List()[0])
+	require.NoError(t, err, "parse TAR raw label")
 
 	ds := datastore.NewMemoryDataStore()
 	require.NoError(t, ds.AddressRefStore.Add(tarAddrRef.Output))
@@ -100,12 +104,14 @@ func TestDeployTokenPool(t *testing.T) {
 		ChainSelector: chainsel.CANTON_LOCALNET.Selector,
 		Participant:   0,
 		Config: DeployLockReleaseTokenPoolConfig{
-			CcipOwner:                         party,
-			PoolOwner:                         party,
-			InstrumentId:                      instrumentId,
-			Decimals:                          6,
-			Qualifier:                         "AMT",
-			TokenAdminRegistryInstanceAddress: contracts.HexToInstanceAddress(tarAddrRef.Output.Address),
+			CcipOwner:    party,
+			PoolOwner:    party,
+			InstrumentId: instrumentId,
+			Decimals:     6,
+			Qualifier:    "AMT",
+			Deps: lockreleasetokenpool.LockReleaseTokenPoolDeps{
+				TokenAdminRegistry: tarRaw.Binding(),
+			},
 		},
 	})
 	require.NoError(t, err, "deploy token pool and register with TAR")

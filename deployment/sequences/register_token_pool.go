@@ -22,9 +22,7 @@ import (
 
 // RegisterTokenPoolInput is the input for registering a token pool with the TokenAdminRegistry.
 type RegisterTokenPoolInput struct {
-	// TokenAdminRegistryInstanceAddress is the instance address of the TokenAdminRegistry contract.
-	TokenAdminRegistryInstanceAddress contracts.InstanceAddress
-	// TokenAdminRegistryRawInstanceAddress is the raw instance address label for MCMS proposals.
+	// TokenAdminRegistryRawInstanceAddress is the raw TAR label ("instanceId@party").
 	TokenAdminRegistryRawInstanceAddress contracts.RawInstanceAddress
 	// InstrumentId identifies the token (admin party + token id).
 	InstrumentId splice_api_token_holding_v1.InstrumentId
@@ -67,12 +65,14 @@ func registerTokenPool(b operations.Bundle, deps canton.Chain, input RegisterTok
 		tokenConfigCidArg = &existingTokenConfigCid
 	}
 
-	tarRaw := input.TokenAdminRegistryRawInstanceAddress.String()
+	tarRaw := input.TokenAdminRegistryRawInstanceAddress
+	if tarRaw == "" {
+		return sequences.OnChainOutput{}, fmt.Errorf("token admin registry raw instance address is required")
+	}
 
 	// Step 1: ProposeAdministrator (CCIP acts)
 	skipAcceptAdminRole := false
 	proposeReport, err := operations.ExecuteOperation(b, token_admin_registry.ProposeAdministrator, deps, contract.ChoiceInput[tokenadminregistry.ProposeAdministrator]{
-		InstanceAddress:    input.TokenAdminRegistryInstanceAddress,
 		RawInstanceAddress: tarRaw,
 		MCMSEnabled:        mcmsEnabled,
 		Args: tokenadminregistry.ProposeAdministrator{
@@ -106,7 +106,6 @@ func registerTokenPool(b operations.Bundle, deps canton.Chain, input RegisterTok
 	// Step 2: AcceptAdminRole (pool owner acts). Exercise resolves current TAR contract by InstanceAddress.
 	if !skipAcceptAdminRole {
 		acceptReport, err := operations.ExecuteOperation(b, token_admin_registry.AcceptAdminRole, deps, contract.ChoiceInput[tokenadminregistry.AcceptAdminRole]{
-			InstanceAddress:    input.TokenAdminRegistryInstanceAddress,
 			RawInstanceAddress: tarRaw,
 			MCMSEnabled:        mcmsEnabled,
 			Args: tokenadminregistry.AcceptAdminRole{
@@ -135,7 +134,6 @@ func registerTokenPool(b operations.Bundle, deps canton.Chain, input RegisterTok
 	// Step 3: SetPool (pool owner acts)
 	poolOwnerPartyTyped := types.PARTY(poolOwnerParty)
 	setPoolReport, err := operations.ExecuteOperation(b, token_admin_registry.SetPool, deps, contract.ChoiceInput[tokenadminregistry.SetPool]{
-		InstanceAddress:    input.TokenAdminRegistryInstanceAddress,
 		RawInstanceAddress: tarRaw,
 		MCMSEnabled:        mcmsEnabled,
 		Args: tokenadminregistry.SetPool{

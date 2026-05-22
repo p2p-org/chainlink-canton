@@ -13,14 +13,12 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/splice/splice_api_token_metadata_v1"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/burn_mint_token_pool"
-	"github.com/smartcontractkit/chainlink-canton/deployment/operations/ccip/token_admin_registry"
 	"github.com/smartcontractkit/chainlink-canton/deployment/sequences"
-	dsutils "github.com/smartcontractkit/chainlink-canton/deployment/utils/datastore"
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 )
 
 // DeployBurnMintTokenPoolConfig is the config for deploying a BurnMintTokenPool.
-// If TokenAdminRegistryInstanceAddress is set, the pool is also registered with that TAR in the same changeset.
+// When Deps.TokenAdminRegistry is set, the pool is also registered with that TAR in the same changeset.
 type DeployBurnMintTokenPoolConfig struct {
 	CcipOwner    string
 	PoolOwner    string
@@ -41,8 +39,6 @@ type DeployBurnMintTokenPoolConfig struct {
 	TokenTransferFeeConfigs map[types.NUMERIC]burnminttokenpool.TokenTransferFeeConfig
 	// Optional; zero-value deps if not provided.
 	Deps burnminttokenpool.BurnMintTokenPoolDeps
-	// If set, the pool is registered with this TokenAdminRegistry (ProposeAdministrator, AcceptAdminRole, SetPool) in the same changeset.
-	TokenAdminRegistryInstanceAddress contracts.InstanceAddress
 }
 
 var _ cldf.ChangeSetV2[CantonCSDeps[DeployBurnMintTokenPoolConfig]] = DeployBurnMintTokenPool{}
@@ -117,22 +113,10 @@ func (d DeployBurnMintTokenPool) Apply(e cldf.Environment, config CantonCSDeps[D
 		return cldf.ChangesetOutput{}, fmt.Errorf("failed to save deployed BurnMintTokenPool contract address: %w", err)
 	}
 
-	if cfg.TokenAdminRegistryInstanceAddress != (contracts.InstanceAddress{}) {
-		tarRef, err := e.DataStore.Addresses().Get(datastore.NewAddressRefKey(
-			config.ChainSelector,
-			datastore.ContractType(token_admin_registry.ContractType),
-			token_admin_registry.Version,
-			"",
-		))
-		if err != nil {
-			return cldf.ChangesetOutput{}, fmt.Errorf("resolve token admin registry: %w", err)
-		}
-		tarRaw, err := dsutils.GetRawInstanceAddressFromAddressRef(tarRef)
-		if err != nil {
-			return cldf.ChangesetOutput{}, fmt.Errorf("resolve token admin registry raw address: %w", err)
-		}
+	if tarRaw, err := contracts.RawInstanceAddressFromBinding(cfg.Deps.TokenAdminRegistry); err != nil {
+		return cldf.ChangesetOutput{}, fmt.Errorf("parse token admin registry from deps: %w", err)
+	} else if tarRaw != "" {
 		regInput := sequences.RegisterTokenPoolInput{
-			TokenAdminRegistryInstanceAddress:    contracts.HexToInstanceAddress(tarRef.Address),
 			TokenAdminRegistryRawInstanceAddress: tarRaw,
 			InstrumentId:                         cfg.InstrumentId,
 			CcipParty:                            cfg.CcipOwner,

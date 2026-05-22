@@ -66,14 +66,28 @@ func DisclosedContractsFromProto(dcs []*apiv2.DisclosedContract) []DisclosedCont
 }
 
 type ChoiceInput[ARGS any] struct {
-	// The InstanceAddress this operation is targeting. Will be resolved to an active contract.
-	InstanceAddress contracts.InstanceAddress `json:"instanceAddress"`
-	// RawInstanceAddress is the "instanceId@partyId" format required by the Canton MCMS SDK
-	// for AdditionalFields.TargetInstanceAddress. Must be set when MCMSEnabled is true.
-	RawInstanceAddress string `json:"rawInstanceAddress,omitempty"`
-	Args               ARGS   `json:"args"`
-	MCMSEnabled        bool   `json:"mcmsEnabled,omitempty"`
+	// RawInstanceAddress is the Canton contract label ("instanceId@party").
+	// The hashed InstanceAddress is derived from this for ledger lookups and MCMS metadata.
+	RawInstanceAddress contracts.RawInstanceAddress `json:"rawInstanceAddress"`
+	Args               ARGS                         `json:"args"`
+	MCMSEnabled        bool                         `json:"mcmsEnabled,omitempty"`
 	DisclosedContracts []DisclosedContract
+}
+
+func NewChoiceInput[ARGS any](raw contracts.RawInstanceAddress, args ARGS, mcmsEnabled bool) ChoiceInput[ARGS] {
+	return ChoiceInput[ARGS]{
+		RawInstanceAddress: raw,
+		Args:               args,
+		MCMSEnabled:        mcmsEnabled,
+	}
+}
+
+func (input ChoiceInput[ARGS]) instanceAddress() (contracts.InstanceAddress, error) {
+	if input.RawInstanceAddress == "" {
+		return contracts.InstanceAddress{}, fmt.Errorf("raw instance address is required")
+	}
+
+	return input.RawInstanceAddress.InstanceAddress(), nil
 }
 
 type ExerciseParams[ARGS any] struct {
@@ -125,14 +139,15 @@ func NewExercise[ARGS any](params ExerciseParams[ARGS]) *operations.Operation[Ch
 				if params.EncodeMethod == nil {
 					return ExerciseOutput{}, fmt.Errorf("MCMSEnabled is true but no EncodeMethod is defined for operation %s", params.Name)
 				}
-				if input.RawInstanceAddress == "" {
-					return ExerciseOutput{}, fmt.Errorf("MCMSEnabled is true but RawInstanceAddress is empty for operation %s", params.Name)
+				instanceAddress, err := input.instanceAddress()
+				if err != nil {
+					return ExerciseOutput{}, fmt.Errorf("operation %s: %w", params.Name, err)
 				}
 				encodedChoice, err := params.EncodeMethod(input.Args)
 				if err != nil {
 					return ExerciseOutput{}, fmt.Errorf("failed to encode choice args for MCMS: %w", err)
 				}
-				mcmsTx, err := NewCantonTransaction(input.RawInstanceAddress, input.InstanceAddress, encodedChoice, params.ContractType, params.Template.GetTemplateID())
+				mcmsTx, err := NewCantonTransaction(string(input.RawInstanceAddress), instanceAddress, encodedChoice, params.ContractType, params.Template.GetTemplateID())
 				if err != nil {
 					return ExerciseOutput{}, fmt.Errorf("failed to build MCMS transaction: %w", err)
 				}
@@ -146,9 +161,13 @@ func NewExercise[ARGS any](params ExerciseParams[ARGS]) *operations.Operation[Ch
 			// Direct execution path
 			participant := deps.Participants[0]
 
-			contractID, err := FindActiveContractIDByInstanceAddress(b.GetContext(), participant.LedgerServices.State, LedgerQueryParties(participant), params.Template.GetTemplateID(), input.InstanceAddress)
+			instanceAddress, err := input.instanceAddress()
 			if err != nil {
-				return ExerciseOutput{}, fmt.Errorf("failed to find contract by InstanceAddress %s: %w", input.InstanceAddress.Hex(), err)
+				return ExerciseOutput{}, fmt.Errorf("operation %s: %w", params.Name, err)
+			}
+			contractID, err := FindActiveContractIDByInstanceAddress(b.GetContext(), participant.LedgerServices.State, LedgerQueryParties(participant), params.Template.GetTemplateID(), instanceAddress)
+			if err != nil {
+				return ExerciseOutput{}, fmt.Errorf("failed to find contract by InstanceAddress %s: %w", instanceAddress.Hex(), err)
 			}
 
 			exerciseCommand := params.Method(contractID, input.Args)

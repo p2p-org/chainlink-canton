@@ -19,6 +19,7 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/ccip/lockreleasetokenpool"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	cantonsequences "github.com/smartcontractkit/chainlink-canton/deployment/sequences"
+	dsutils "github.com/smartcontractkit/chainlink-canton/deployment/utils/datastore"
 	opcontract "github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 )
 
@@ -33,7 +34,7 @@ func (c CantonTokenAdapter) ConfigureTokenForTransfersSequence() *operations.Seq
 }
 
 func (c CantonTokenAdapter) AddressRefToBytes(ref datastore.AddressRef) ([]byte, error) {
-	return contracts.HexToInstanceAddress(ref.Address).Bytes(), nil
+	return dsutils.ToInstanceAddressBytes(ref)
 }
 
 func (c CantonTokenAdapter) DeriveTokenAddress(e deployment.Environment, chainSelector uint64, poolRef datastore.AddressRef) ([]byte, error) {
@@ -82,7 +83,10 @@ func (c CantonTokenAdapter) DeriveTokenDecimals(e deployment.Environment, chainS
 		ctx = e.GetContext()
 	}
 
-	poolAddress := contracts.HexToInstanceAddress(poolAddressRef.Address)
+	poolAddress, err := dsutils.ToInstanceAddress(poolAddressRef)
+	if err != nil {
+		return 0, fmt.Errorf("resolve Canton token pool instance address: %w", err)
+	}
 	switch poolRef.Type {
 	case datastore.ContractType("LockReleaseTokenPool"):
 		activePool, err := opcontract.FindActiveContractByInstanceAddress(
