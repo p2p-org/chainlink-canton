@@ -183,7 +183,11 @@ func generatePackage(dar []byte, pkgFile string, externalPackages model.External
 		}
 
 		dalfLower := strings.ToLower(dalf)
-		if strings.Contains(dalfLower, "prim") || strings.Contains(dalfLower, "stdlib") {
+		if strings.Contains(dalfLower, "stdlib") {
+			continue
+		}
+		// Skip prim/stdlib dalfs; utility Tuple2 references are shimmed in compat.go.
+		if strings.Contains(dalfLower, "prim") {
 			continue
 		}
 
