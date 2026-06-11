@@ -53,7 +53,7 @@ func argsToMap(args any) map[string]any {
 
 // Claim is a Record type
 type Claim struct {
-	Subject  types.TEXT `json:"subject"`
+	Subject  types.TEXT `json:"subject" hex:"bytes"`
 	Property types.TEXT `json:"property"`
 	Value    types.TEXT `json:"value"`
 }

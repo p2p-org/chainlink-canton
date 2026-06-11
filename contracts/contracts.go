@@ -50,24 +50,26 @@ const (
 	CCIPPerPartyRouter     = CCIPRuntime
 	CCIPPoolInterfaces     = CCIPExtensionAPI
 
-	SpliceApiFeaturedAppV1                   = Package("splice-api-featured-app-v1")
-	SpliceApiTokenAllocationV1               = Package("splice-api-token-allocation-v1")
-	SpliceApiTokenAllocationInstructionV1    = Package("splice-api-token-allocation-instruction-v1")
-	SpliceApiTokenBurnMintV1                 = Package("splice-api-token-burn-mint-v1")
-	SpliceApiTokenHoldingV1             = Package("splice-api-token-holding-v1")
-	SpliceApiTokenMetadataV1            = Package("splice-api-token-metadata-v1")
-	SpliceApiTokenTransferInstructionV1 = Package("splice-api-token-transfer-instruction-v1")
+	SpliceApiFeaturedAppV1                = Package("splice-api-featured-app-v1")
+	SpliceApiTokenAllocationV1            = Package("splice-api-token-allocation-v1")
+	SpliceApiTokenAllocationInstructionV1 = Package("splice-api-token-allocation-instruction-v1")
+	SpliceApiTokenBurnMintV1              = Package("splice-api-token-burn-mint-v1")
+	SpliceApiTokenHoldingV1               = Package("splice-api-token-holding-v1")
+	SpliceApiTokenMetadataV1              = Package("splice-api-token-metadata-v1")
+	SpliceApiTokenTransferInstructionV1   = Package("splice-api-token-transfer-instruction-v1")
 
 	// Canton Network Utility DARs (bundle 0.12.5). Package IDs pinned in dar-versions.md.
-	UtilityCommercialsV0      = Package("utility-commercials-v0")
-	UtilityCredentialV0       = Package("utility-credential-v0")
-	UtilityCredentialAppV0    = Package("utility-credential-app-v0")
-	UtilityRegistryV0         = Package("utility-registry-v0")
-	UtilityRegistryHoldingV0  = Package("utility-registry-holding-v0")
-	UtilityRegistryAppV0      = Package("utility-registry-app-v0")
+	UtilityCommercialsV0     = Package("utility-commercials-v0")
+	UtilityCredentialV0      = Package("utility-credential-v0")
+	UtilityCredentialAppV0   = Package("utility-credential-app-v0")
+	UtilityRegistryV0        = Package("utility-registry-v0")
+	UtilityRegistryHoldingV0 = Package("utility-registry-holding-v0")
+	UtilityRegistryAppV0     = Package("utility-registry-app-v0")
 )
 
 // Pinned package IDs from canton-network-utility-dars-0.12.5 / dar-versions.md.
+//
+//nolint:gosec // G101: These are safe package IDs
 const (
 	UtilityCommercialsV0PackageID     = "fa5b1cc5c8368dff7c2e6a74aa2af9d520d755e2a508f44acd17343326e41839"
 	UtilityCredentialAppV0PackageID   = "e9a3b7df354dfd2f15c7d015328c34256308c90ba96f86f185dad58ffca8299b"
@@ -110,9 +112,9 @@ var Versions map[Package][]string = map[Package][]string{
 	SpliceApiTokenAllocationV1:            []string{"1.0.0"},
 	SpliceApiTokenAllocationInstructionV1: []string{"1.0.0"},
 	SpliceApiTokenBurnMintV1:              []string{"1.0.0"},
-	SpliceApiTokenHoldingV1:             []string{"1.0.0"},
-	SpliceApiTokenMetadataV1:            []string{"1.0.0"},
-	SpliceApiTokenTransferInstructionV1: []string{"1.0.0"},
+	SpliceApiTokenHoldingV1:               []string{"1.0.0"},
+	SpliceApiTokenMetadataV1:              []string{"1.0.0"},
+	SpliceApiTokenTransferInstructionV1:   []string{"1.0.0"},
 
 	// Vendored from canton-network-utility-dars-0.12.5; semver pinned in Utility*PackageID constants.
 	UtilityCommercialsV0:     []string{CurrentVersion},
@@ -183,13 +185,11 @@ var OutputDirs = map[Package][]string{
 	SpliceApiTokenAllocationV1:            []string{"splice", "splice_api_token_allocation_v1"},
 	SpliceApiTokenAllocationInstructionV1: []string{"splice", "splice_api_token_allocation_instruction_v1"},
 	SpliceApiTokenBurnMintV1:              []string{"splice", "splice_api_token_burn_mint_v1"},
-	SpliceApiTokenHoldingV1:             []string{"splice", "splice_api_token_holding_v1"},
-	SpliceApiTokenMetadataV1:            []string{"splice", "splice_api_token_metadata_v1"},
-	SpliceApiTokenTransferInstructionV1: []string{"splice", "splice_api_token_transfer_instruction_v1"},
+	SpliceApiTokenHoldingV1:               []string{"splice", "splice_api_token_holding_v1"},
+	SpliceApiTokenMetadataV1:              []string{"splice", "splice_api_token_metadata_v1"},
+	SpliceApiTokenTransferInstructionV1:   []string{"splice", "splice_api_token_transfer_instruction_v1"},
 
-	UtilityCommercialsV0:     []string{"utility", "commercials_v0"},
 	UtilityCredentialV0:      []string{"utility", "credential_v0"},
-	UtilityCredentialAppV0:   []string{"utility", "credential_app_v0"},
 	UtilityRegistryV0:        []string{"utility", "registry_v0"},
 	UtilityRegistryHoldingV0: []string{"utility", "registry_holding_v0"},
 	UtilityRegistryAppV0:     []string{"utility", "registry_app_v0"},

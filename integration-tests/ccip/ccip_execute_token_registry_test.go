@@ -68,6 +68,7 @@ import (
 	edsTesthelpers "github.com/smartcontractkit/chainlink-canton/testhelpers/eds"
 
 	_ "github.com/smartcontractkit/chainlink-ccip/chains/evm/deployment/v2_0_0/adapters"
+
 	_ "github.com/smartcontractkit/chainlink-canton/deployment/adapters"
 )
 
@@ -400,7 +401,7 @@ func runRegistryTokenPoolReceiveFlowTest(t *testing.T, tc bnmTokenPoolReceiveFlo
 	require.NoError(t, err)
 
 	tokenConfigCID, tarCID, err := rkccip.RegisterTokenPoolViaClient(ctx, ccipClient, rkccip.RegisterTokenPoolClientInput{
-		TokenAdminRegistryCID: string(initialTarCID),
+		TokenAdminRegistryCID: initialTarCID,
 		InstrumentId:          registryInstrumentId,
 		PoolInstanceID:        registryExecutePoolInstanceID,
 		CcipParty:             partyCCIP,
@@ -574,7 +575,7 @@ func runRegistryTokenPoolReceiveFlowTest(t *testing.T, tc bnmTokenPoolReceiveFlo
 					CreateArguments: &apiv2.Record{Fields: []*apiv2.RecordField{
 						{Label: "instanceId", Value: &apiv2.Value{Sum: &apiv2.Value_Text{Text: "test-ccipreceiver-registry"}}},
 						{Label: "owner", Value: &apiv2.Value{Sum: &apiv2.Value_Party{Party: partyReceiver}}},
-						{Label: "receiverFinalityConfig", Value: finalityConfigValueFromBlockConfirmations(2000)},
+						{Label: "receiverFinalityConfig", Value: finalityConfigValueFromBlockConfirmations()},
 						{Label: "requiredCCVs", Value: &apiv2.Value{Sum: &apiv2.Value_List{List: &apiv2.List{Elements: nil}}}},
 						{Label: "optionalCCVs", Value: &apiv2.Value{Sum: &apiv2.Value_List{List: &apiv2.List{Elements: nil}}}},
 						{Label: "optionalThreshold", Value: &apiv2.Value{Sum: &apiv2.Value_Int64{Int64: 0}}},

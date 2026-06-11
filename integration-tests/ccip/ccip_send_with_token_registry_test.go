@@ -291,10 +291,10 @@ func TestRegistryTokenPool_FullSendFlow(t *testing.T) {
 						CommitteeVerifier: []datastore.AddressRef{committeeVerifierRef},
 						RemoteChains: map[uint64]lanes.CommitteeVerifierRemoteChainConfig{
 							remoteSelector: {
-								AllowlistEnabled:          false,
-								FeeUSDCents:               uint16(ccvFeeUSDCents),
-								GasForVerification:        50_000,
-								PayloadSizeBytes:          6*64 + 2*32,
+								AllowlistEnabled:   false,
+								FeeUSDCents:        uint16(ccvFeeUSDCents),
+								GasForVerification: 50_000,
+								PayloadSizeBytes:   6*64 + 2*32,
 								SignatureConfig: lanes.CommitteeVerifierSignatureQuorumConfig{
 									Signers:   ccvSignerPubKeys,
 									Threshold: 2,
@@ -402,7 +402,7 @@ func TestRegistryTokenPool_FullSendFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	tokenConfigCID, tarCID, err := rkccip.RegisterTokenPoolViaClient(ctx, ccipClient, rkccip.RegisterTokenPoolClientInput{
-		TokenAdminRegistryCID: string(initialTarCID),
+		TokenAdminRegistryCID: initialTarCID,
 		InstrumentId:          registryInstrumentId,
 		PoolInstanceID:        registrySendPoolInstanceID,
 		CcipParty:             partyCCIP,
@@ -411,7 +411,7 @@ func TestRegistryTokenPool_FullSendFlow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	tokenConfigCID, err = rkccip.SetBurnMintFactory(ctx, senderClient, rkccip.SetBurnMintFactoryInput{
+	_, err = rkccip.SetBurnMintFactory(ctx, senderClient, rkccip.SetBurnMintFactoryInput{
 		TokenAdminRegistryCID: tarCID,
 		TokenConfigCID:        tokenConfigCID,
 		InstrumentId:          registryInstrumentId,
@@ -623,18 +623,14 @@ func TestRegistryTokenPool_FullSendFlow(t *testing.T) {
 		CcipParty:                 partyCCIP,
 		Bootstrap:                 bootstrap,
 		PoolInstanceID:            registrySendPoolInstanceID,
-		RateLimiterInstanceID:       registrySendRLInstanceID,
+		RateLimiterInstanceID:     registrySendRLInstanceID,
 		PoolAddress:               poolAddr,
 		TokenAdminRegistryAddress: tokenAdminRegistryAddress,
 		TokenAdminRegistryCID:     tarCID,
 		RMNRemoteAddress:          rmnRemoteAddress,
 	}
 
-	buildSendBundle := func(enableResultContracts bool) (
-		sender.Send,
-		[]*apiv2.DisclosedContract,
-		*edsTesthelpers.TokenPoolSendDisclosure,
-	) {
+	buildSendBundle := func(enableResultContracts bool) (sender.Send, []*apiv2.DisclosedContract) {
 		tokenPoolSendDisclosure := buildRegistryTokenPoolSendDisclosure(t, ctx, senderParticipant, ccipParticipant, ccipAPIClient, poolSendDeps, hashedRegistryInstrumentId, enableResultContracts)
 		ccipSendDisclosure, err := edsTesthelpers.GetCCIPSendDisclosure(ctx, ccipAPIClient, msg, nil, tokenPoolSendDisclosure.RequiredCCVs)
 		require.NoError(t, err)
@@ -716,18 +712,15 @@ func TestRegistryTokenPool_FullSendFlow(t *testing.T) {
 			executorSendDisclosure.DisclosedContracts,
 		)...)
 
-		return sendArgs, sendDisclosures, tokenPoolSendDisclosure
+		return sendArgs, sendDisclosures
 	}
 
-	sendArgs, sendDisclosures, _ := buildSendBundle(false)
+	sendArgs, sendDisclosures := buildSendBundle(false)
 	quotedFee := quoteCCIPSenderFee(t, senderParticipant, partySender, ccipSenderCid, sendArgs, sendDisclosures)
 	feeStr := strings.TrimSuffix(string(quotedFee.FeeTokenAmount), ".")
 	poolFeeStr := strings.TrimSuffix(string(quotedFee.PoolFeeTokenAmount), ".")
 	require.NotEqual(t, "0", feeStr)
 	require.NotEqual(t, "0", poolFeeStr)
-
-	// Refresh disclosures after GetFee (ledger effects may retire contract witnesses).
-	sendArgs, sendDisclosures, _ = buildSendBundle(false)
 
 	disclosedContracts, err := edsTesthelpers.GetGlobalDisclosureBatch(ctx, globalAPIClient, []contracts.InstanceAddress{
 		perPartyRouterFactoryAddress.InstanceAddress(),
@@ -746,7 +739,7 @@ func TestRegistryTokenPool_FullSendFlow(t *testing.T) {
 	var sendRes *apiv2.SubmitAndWaitForTransactionResponse
 	var enableResultContracts bool
 	for _, enable := range []bool{false, true} {
-		sendArgs, sendDisclosures, _ = buildSendBundle(enable)
+		sendArgs, sendDisclosures = buildSendBundle(enable)
 
 		sendRes, err = senderParticipant.LedgerServices.Command.SubmitAndWaitForTransaction(ctx, &apiv2.SubmitAndWaitForTransactionRequest{
 			Commands: &apiv2.Commands{
@@ -791,6 +784,7 @@ func TestRegistryTokenPool_FullSendFlow(t *testing.T) {
 						}
 					}
 				}
+
 				break
 			}
 		}

@@ -6,18 +6,19 @@ import (
 	"testing"
 
 	apiv2 "github.com/digital-asset/dazl-client/v8/go/api/com/daml/ledger/api/v2"
+	"github.com/smartcontractkit/chainlink-deployments-framework/chain/canton"
+	"github.com/stretchr/testify/require"
+
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/ccip/burnminttokenpool"
 	"github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/ccip/core"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	contractops "github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
+	oapiCCIP "github.com/smartcontractkit/chainlink-canton/openapi/gen/eds/ccip"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ccip"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ledger"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/registry"
 	"github.com/smartcontractkit/chainlink-canton/testhelpers"
 	edsTesthelpers "github.com/smartcontractkit/chainlink-canton/testhelpers/eds"
-	oapiCCIP "github.com/smartcontractkit/chainlink-canton/openapi/gen/eds/ccip"
-	"github.com/smartcontractkit/chainlink-deployments-framework/chain/canton"
-	"github.com/stretchr/testify/require"
 )
 
 func uploadRegistryDARs(t *testing.T, participants ...canton.Participant) {
@@ -85,7 +86,7 @@ func contractCIDByInstance(
 	)
 	require.NoError(t, err)
 
-	return string(cid)
+	return cid
 }
 
 func buildRegistryTokenPoolSendDisclosure(

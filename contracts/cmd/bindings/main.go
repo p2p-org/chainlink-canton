@@ -146,6 +146,16 @@ func main() {
 			log.Fatal().Err(err).Str("package", string(p)).Str("outputFile", outputFile).Msg("Failed to write generated bindings to file")
 		}
 	}
+
+	// Utility DARs need post-processing: Tuple2 shims (prim dalfs skipped above) and
+	// splice Transfer2 collision fix when registry packages define a local Transfer2 type.
+	if err := writeTuple2Shims(*artifactsDir); err != nil {
+		log.Fatal().Err(err).Msg("Failed to write utility Tuple2 shims")
+	}
+	if err := patchUtilityBindingCollisions(*artifactsDir); err != nil {
+		log.Fatal().Err(err).Msg("Failed to patch utility binding collisions")
+	}
+
 	log.Info().Msg("Successfully generated all bindings")
 }
 
