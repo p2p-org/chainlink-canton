@@ -21,7 +21,6 @@ func Validate(
 	ctx context.Context,
 	client ledger.Client,
 	instrumentID splice_api_token_holding_v1.InstrumentId,
-	tarInstanceAddr contracts.InstanceAddress,
 	ccipParty, poolInstanceID string,
 ) error {
 	tokenConfigAddr := contracts.InstanceID(hex.EncodeToString(contracts.EncodeInstrumentID(instrumentID).Bytes())).
@@ -61,8 +60,6 @@ func Validate(
 	if err != nil {
 		return fmt.Errorf("holdings not visible for instrument: %w", err)
 	}
-
-	_ = tarInstanceAddr
 
 	return nil
 }

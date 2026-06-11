@@ -37,7 +37,10 @@ func QuerySupply(ctx context.Context, client ledger.Client, registrarParty, inst
 		if string(holding.Instrument.Id) != instrumentID {
 			continue
 		}
-		amount := decimal.RequireFromString(string(holding.Amount))
+		amount, err := parseDecimal("holding amount", string(holding.Amount))
+		if err != nil {
+			return decimal.Zero, nil, err
+		}
 		total = total.Add(amount)
 		rows = append(rows, HoldingRow{
 			ContractID: ac.GetCreatedEvent().GetContractId(),

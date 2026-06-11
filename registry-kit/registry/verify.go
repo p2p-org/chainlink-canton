@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/shopspring/decimal"
 	"github.com/smartcontractkit/chainlink-canton/bindings"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ledger"
@@ -40,7 +39,15 @@ func VerifyHolding(ctx context.Context, client ledger.Client, owner, registrar, 
 	if types.PARTY(owner) != found.Owner {
 		return fmt.Errorf("owner: expected %s got %s", owner, found.Owner)
 	}
-	if !decimal.RequireFromString(expectedAmount).Equal(decimal.RequireFromString(string(found.Amount))) {
+	expected, err := parseDecimal("expected amount", expectedAmount)
+	if err != nil {
+		return err
+	}
+	actual, err := parseDecimal("holding amount", string(found.Amount))
+	if err != nil {
+		return err
+	}
+	if !expected.Equal(actual) {
 		return fmt.Errorf("amount: expected %s got %s", expectedAmount, found.Amount)
 	}
 	if types.PARTY(registrar) != found.Registrar {
@@ -67,7 +74,11 @@ func VerifyHolding(ctx context.Context, client ledger.Client, owner, registrar, 
 	if string(holdingV1.View.InstrumentId.Admin) != registrar {
 		return fmt.Errorf("HoldingV1 instrumentId.admin: expected %s got %s", registrar, holdingV1.View.InstrumentId.Admin)
 	}
-	if !decimal.RequireFromString(expectedAmount).Equal(decimal.RequireFromString(string(holdingV1.View.Amount))) {
+	holdingV1Amount, err := parseDecimal("HoldingV1 amount", string(holdingV1.View.Amount))
+	if err != nil {
+		return err
+	}
+	if !expected.Equal(holdingV1Amount) {
 		return fmt.Errorf("HoldingV1 amount: expected %s got %s", expectedAmount, holdingV1.View.Amount)
 	}
 

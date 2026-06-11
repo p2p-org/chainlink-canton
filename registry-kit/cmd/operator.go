@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ccip"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ledger"
 	splice_api_token_holding_v1 "github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/splice/splice_api_token_holding_v1"
@@ -115,7 +114,7 @@ var validateCmd = &cobra.Command{
 			return err
 		}
 
-		if err := ccip.Validate(cmd.Context(), client, instrumentID, contracts.InstanceAddress{}, rt.Config.CCIP.CCIPParty, rt.Config.CCIP.BurnMintPoolInstanceID); err != nil {
+		if err := ccip.Validate(cmd.Context(), client, instrumentID, rt.Config.CCIP.CCIPParty, rt.Config.CCIP.BurnMintPoolInstanceID); err != nil {
 			return err
 		}
 

@@ -1,6 +1,5 @@
 # Canton registry-kit configuration (devnet.cv1)
-# Copy to registry-kit.yaml and fill in party IDs from your token deployer.
-# If migrating from starter-kit: cp starter-kit.yaml registry-kit.yaml
+# Copy to registry-kit.toml and fill in party IDs from your token deployer.
 
 network = "devnet-cv1"
 chain_selector = 0  # optional; RPC metadata only

@@ -9,7 +9,7 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/commonconfig"
 )
 
-const DefaultConfigPath = "registry-kit.yaml"
+const DefaultConfigPath = "registry-kit.toml"
 
 // Config is stable operator input for canton-registry-kit (devnet.cv1).
 type Config struct {
@@ -52,7 +52,7 @@ type OperatorConfig struct {
 	BaseURL string `toml:"base_url"`
 }
 
-// Load reads registry-kit.yaml from path.
+// Load reads registry-kit.toml from path.
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -67,8 +67,15 @@ func Load(path string) (Config, error) {
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
+	cfg.applyDefaults()
 
 	return cfg, nil
+}
+
+func (c *Config) applyDefaults() {
+	if c.Operator.BaseURL == "" {
+		c.Operator.BaseURL = "https://api.utilities.digitalasset-dev.com/api/utilities"
+	}
 }
 
 // Validate checks required fields for devnet CLI usage.
@@ -96,9 +103,6 @@ func (c Config) Validate() error {
 	}
 	if c.Parties.Registrar == "" {
 		return fmt.Errorf("parties.registrar is required")
-	}
-	if c.Operator.BaseURL == "" {
-		c.Operator.BaseURL = "https://api.utilities.digitalasset-dev.com/api/utilities"
 	}
 
 	return nil

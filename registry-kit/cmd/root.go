@@ -20,7 +20,7 @@ var rootCmd = &cobra.Command{
 	Long: `canton-registry-kit automates Registry utility onboarding, token lifecycle,
 and CCIP TokenAdminRegistry linking on devnet.cv1.
 
-Configuration: registry-kit.yaml (stable inputs) + registry-kit.state.json (progress).`,
+Configuration: registry-kit.toml (stable inputs) + registry-kit.state.json (progress).`,
 }
 
 func Execute() error {
@@ -28,7 +28,7 @@ func Execute() error {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&configPath, "config", config.DefaultConfigPath, "Path to registry-kit.yaml")
+	rootCmd.PersistentFlags().StringVar(&configPath, "config", config.DefaultConfigPath, "Path to registry-kit.toml")
 	rootCmd.PersistentFlags().StringVar(&statePath, "state", "", "Path to registry-kit.state.json (default: beside --config)")
 
 	rootCmd.AddCommand(onboardingCmd)
