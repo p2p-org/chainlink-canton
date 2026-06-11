@@ -59,9 +59,7 @@ const (
 	SpliceApiTokenTransferInstructionV1   = Package("splice-api-token-transfer-instruction-v1")
 
 	// Canton Network Utility DARs (bundle 0.12.5). Package IDs pinned in dar-versions.md.
-	UtilityCommercialsV0     = Package("utility-commercials-v0")
 	UtilityCredentialV0      = Package("utility-credential-v0")
-	UtilityCredentialAppV0   = Package("utility-credential-app-v0")
 	UtilityRegistryV0        = Package("utility-registry-v0")
 	UtilityRegistryHoldingV0 = Package("utility-registry-holding-v0")
 	UtilityRegistryAppV0     = Package("utility-registry-app-v0")
@@ -117,9 +115,7 @@ var Versions map[Package][]string = map[Package][]string{
 	SpliceApiTokenTransferInstructionV1:   []string{"1.0.0"},
 
 	// Vendored from canton-network-utility-dars-0.12.5; semver pinned in Utility*PackageID constants.
-	UtilityCommercialsV0:     []string{CurrentVersion},
 	UtilityCredentialV0:      []string{CurrentVersion},
-	UtilityCredentialAppV0:   []string{CurrentVersion},
 	UtilityRegistryV0:        []string{CurrentVersion},
 	UtilityRegistryHoldingV0: []string{CurrentVersion},
 	UtilityRegistryAppV0:     []string{CurrentVersion},
