@@ -11,7 +11,7 @@ import (
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ledger"
 	"github.com/smartcontractkit/chainlink-canton/testhelpers"
 	registryholding "github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/utility/registry_holding_v0"
-	v1holding "github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/splice/splice_api_token_holding_v1"
+	splice_api_token_holding_v1 "github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/splice/splice_api_token_holding_v1"
 	"github.com/smartcontractkit/go-daml/pkg/types"
 )
 
@@ -86,8 +86,8 @@ func VerifyHolding(ctx context.Context, client ledger.Client, owner, registrar, 
 	return nil
 }
 
-func holdingsInstrumentQuery(registrar, instrumentID string) *v1holding.InstrumentId {
-	return &v1holding.InstrumentId{
+func holdingsInstrumentQuery(registrar, instrumentID string) *splice_api_token_holding_v1.InstrumentId {
+	return &splice_api_token_holding_v1.InstrumentId{
 		Admin: types.PARTY(registrar),
 		Id:    types.TEXT(instrumentID),
 	}

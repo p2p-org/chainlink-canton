@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	apiv2 "github.com/digital-asset/dazl-client/v8/go/api/com/daml/ledger/api/v2"
-	"github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/ccip/tokenadminregistry"
+	ccipcore "github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/ccip/core"
+	splice_api_token_holding_v1 "github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/splice/splice_api_token_holding_v1"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-canton/deployment/sequences"
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ledger"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/registry"
-	"github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/splice/splice_api_token_holding_v1"
 	"github.com/smartcontractkit/chainlink-deployments-framework/chain/canton"
 	cld_ops "github.com/smartcontractkit/chainlink-deployments-framework/operations"
 	"github.com/smartcontractkit/go-daml/pkg/types"
@@ -82,8 +82,8 @@ func RegisterTokenPoolViaClient(ctx context.Context, client ledger.Client, input
 	}
 
 	skipAccept := false
-	proposeRes, err := client.SubmitExercise(ctx, input.CcipParty, tokenadminregistry.TokenAdminRegistry{}, tarCID, "ProposeAdministrator",
-		tokenadminregistry.ProposeAdministrator{
+	proposeRes, err := client.SubmitExercise(ctx, input.CcipParty, ccipcore.TokenAdminRegistry{}, tarCID, "ProposeAdministrator",
+		ccipcore.ProposeAdministrator{
 			TokenConfigCid: tokenConfigCIDArg,
 			InstrumentId:   input.InstrumentId,
 			NewAdmin:       types.PARTY(input.PoolOwnerParty),
@@ -112,8 +112,8 @@ func RegisterTokenPoolViaClient(ctx context.Context, client ledger.Client, input
 			return "", tarCID, fmt.Errorf("disclose TAR for AcceptAdminRole: %w", err)
 		}
 
-		acceptRes, err := poolOwnerClient.SubmitExerciseMulti(ctx, []string{input.PoolOwnerParty}, tokenadminregistry.TokenAdminRegistry{}, tarCID, "AcceptAdminRole",
-			tokenadminregistry.AcceptAdminRole{
+		acceptRes, err := poolOwnerClient.SubmitExerciseMulti(ctx, []string{input.PoolOwnerParty}, ccipcore.TokenAdminRegistry{}, tarCID, "AcceptAdminRole",
+			ccipcore.AcceptAdminRole{
 				TokenConfigCid: types.CONTRACT_ID(tokenConfigCID),
 				InstrumentId:   input.InstrumentId,
 				Caller:         types.PARTY(input.PoolOwnerParty),
@@ -133,11 +133,11 @@ func RegisterTokenPoolViaClient(ctx context.Context, client ledger.Client, input
 		return "", tarCID, fmt.Errorf("disclose TAR for SetPool: %w", err)
 	}
 
-	setPoolRes, err := poolOwnerClient.SubmitExerciseMulti(ctx, []string{input.PoolOwnerParty}, tokenadminregistry.TokenAdminRegistry{}, tarCID, "SetPool",
-		tokenadminregistry.SetPool{
+	setPoolRes, err := poolOwnerClient.SubmitExerciseMulti(ctx, []string{input.PoolOwnerParty}, ccipcore.TokenAdminRegistry{}, tarCID, "SetPool",
+		ccipcore.SetPool{
 			TokenConfigCid: types.CONTRACT_ID(tokenConfigCID),
 			InstrumentId:   input.InstrumentId,
-			TokenPool: &tokenadminregistry.PoolRegistration{
+			TokenPool: &ccipcore.PoolRegistration{
 				PoolOwner:      types.PARTY(input.PoolOwnerParty),
 				PoolInstanceId: types.TEXT(input.PoolInstanceID),
 			},
@@ -160,7 +160,7 @@ func findTokenConfigCID(ctx context.Context, client ledger.Client, ccipParty str
 		ctx,
 		participant.LedgerServices.State,
 		[]string{ccipParty},
-		tokenadminregistry.TokenConfig{}.GetTemplateID(),
+		ccipcore.TokenConfig{}.GetTemplateID(),
 		addr,
 	)
 	if err != nil {

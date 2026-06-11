@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/ccip/burnminttokenpool"
-	ccipcommon "github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/ccip/common"
-	"github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/splice/splice_api_token_holding_v1"
+	"github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/ccip/burnminttokenpool"
+	ccipcore "github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/ccip/core"
+	splice_api_token_holding_v1 "github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/splice/splice_api_token_holding_v1"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ledger"
 	"github.com/smartcontractkit/go-daml/pkg/types"
@@ -25,7 +25,7 @@ func DeployInboundRateLimiterForOwner(
 	ctx context.Context,
 	client ledger.Client,
 	ownerParty string,
-	template ccipcommon.RateLimiter,
+	template ccipcore.RateLimiter,
 ) (contracts.RawInstanceAddress, error) {
 	res, err := client.SubmitCreate(ctx, ownerParty, template)
 	if err != nil {
@@ -48,7 +48,7 @@ func DeployOutboundRateLimiterForOwner(
 	ctx context.Context,
 	client ledger.Client,
 	ownerParty string,
-	template ccipcommon.RateLimiter,
+	template ccipcore.RateLimiter,
 ) (contracts.RawInstanceAddress, error) {
 	res, err := client.SubmitCreate(ctx, ownerParty, template)
 	if err != nil {

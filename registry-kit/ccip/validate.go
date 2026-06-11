@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"github.com/smartcontractkit/chainlink-canton/bindings"
-	"github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/ccip/tokenadminregistry"
+	ccipcore "github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/ccip/core"
+	splice_api_token_holding_v1 "github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/splice/splice_api_token_holding_v1"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	"github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ledger"
 	"github.com/smartcontractkit/chainlink-canton/testhelpers"
-	"github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/splice/splice_api_token_holding_v1"
 	"github.com/smartcontractkit/go-daml/pkg/types"
 )
 
@@ -33,7 +33,7 @@ func Validate(
 		ctx,
 		participant.LedgerServices.State,
 		contract.LedgerQueryParties(participant),
-		tokenadminregistry.TokenConfig{}.GetTemplateID(),
+		ccipcore.TokenConfig{}.GetTemplateID(),
 		tokenConfigAddr,
 	)
 	if err != nil {
@@ -42,7 +42,7 @@ func Validate(
 		}
 		return fmt.Errorf("fetch token config: %w", err)
 	}
-	cfg, err := bindings.UnmarshalCreatedEvent[tokenadminregistry.TokenConfig](active.GetCreatedEvent())
+	cfg, err := bindings.UnmarshalCreatedEvent[ccipcore.TokenConfig](active.GetCreatedEvent())
 	if err != nil {
 		return fmt.Errorf("unmarshal token config: %w", err)
 	}

@@ -6,9 +6,8 @@ import (
 	"testing"
 
 	apiv2 "github.com/digital-asset/dazl-client/v8/go/api/com/daml/ledger/api/v2"
-	"github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/ccip/burnminttokenpool"
-	ccipcommon "github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/ccip/common"
-	ccipcore "github.com/smartcontractkit/chainlink-canton/bindings/generated/v1_0_0/ccip/core"
+	"github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/ccip/burnminttokenpool"
+	"github.com/smartcontractkit/chainlink-canton/bindings/generated/latest/ccip/core"
 	"github.com/smartcontractkit/chainlink-canton/contracts"
 	contractops "github.com/smartcontractkit/chainlink-canton/deployment/utils/operations/contract"
 	"github.com/smartcontractkit/chainlink-canton/registry-kit/ccip"
@@ -104,11 +103,11 @@ func buildRegistryTokenPoolSendDisclosure(
 	poolAddressEDS, err := edsTesthelpers.GetTokenPoolForToken(ctx, ccipAPIClient, hashedInstrumentID)
 	require.NoError(t, err)
 
-	outboundRLCID, err := findContractCIDByInstanceID(ctx, deps.Client, deps.RegistrarParty, ccipcommon.RateLimiter{}, deps.RateLimiterInstanceID)
+	outboundRLCID, err := findContractCIDByInstanceID(ctx, deps.Client, deps.RegistrarParty, core.RateLimiter{}, deps.RateLimiterInstanceID)
 	require.NoError(t, err)
 
 	poolCID := contractCIDByInstance(t, ctx, registrarParticipant, deps.RegistrarParty, burnminttokenpool.BurnMintTokenPool{}, deps.PoolAddress.InstanceAddress())
-	rmnCID := contractCIDByInstance(t, ctx, ccipParticipant, deps.CcipParty, ccipcore.RMNRemote{}, deps.RMNRemoteAddress.InstanceAddress())
+	rmnCID := contractCIDByInstance(t, ctx, ccipParticipant, deps.CcipParty, core.RMNRemote{}, deps.RMNRemoteAddress.InstanceAddress())
 
 	choiceContext := ccip.RegistryPoolSendExtraContextV1(
 		outboundRLCID,
@@ -179,11 +178,11 @@ func buildRegistryTokenPoolExecuteDisclosure(
 	if customFinality {
 		rlInstanceID = deps.CustomRateLimiterInstanceID
 	}
-	inboundRLCID, err := findContractCIDByInstanceID(ctx, deps.Client, deps.RegistrarParty, ccipcommon.RateLimiter{}, rlInstanceID)
+	inboundRLCID, err := findContractCIDByInstanceID(ctx, deps.Client, deps.RegistrarParty, core.RateLimiter{}, rlInstanceID)
 	require.NoError(t, err)
 
 	poolCID := contractCIDByInstance(t, ctx, registrarParticipant, deps.RegistrarParty, burnminttokenpool.BurnMintTokenPool{}, deps.PoolAddress.InstanceAddress())
-	rmnCID := contractCIDByInstance(t, ctx, ccipParticipant, deps.CcipParty, ccipcore.RMNRemote{}, deps.RMNRemoteAddress.InstanceAddress())
+	rmnCID := contractCIDByInstance(t, ctx, ccipParticipant, deps.CcipParty, core.RMNRemote{}, deps.RMNRemoteAddress.InstanceAddress())
 
 	choiceContext := ccip.RegistryPoolSendExtraContextV1(
 		inboundRLCID,
