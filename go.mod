@@ -26,7 +26,7 @@ require (
 	github.com/icza/gox v0.2.9
 	github.com/jpillora/backoff v1.0.0
 	github.com/lib/pq v1.12.3
-	github.com/moby/moby/api v1.54.2
+	github.com/moby/moby/api v1.55.0
 	github.com/oapi-codegen/runtime v1.4.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/zerolog v1.35.1
