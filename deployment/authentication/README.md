@@ -89,6 +89,9 @@ provider, err := clientcredentials.NewDiscoveryProvider(
     "client-id",
     "client-secret",
     clientcredentials.WithScopes("daml_ledger_api", "admin"),
+    // Required by some providers (e.g. Auth0) so the issued token's "aud" claim
+    // matches the Canton ledger API. Sent as the "audience" token-request parameter.
+    clientcredentials.WithAudience("https://canton.network.global"),
 )
 ```
 
@@ -107,7 +110,7 @@ provider, err := clientcredentials.NewProvider(
 ```
 
 Additional options are available via the functional options pattern (see package documentation for `WithScopes`,
-`WithTransportCredentials`, etc).
+`WithAudience`, `WithTransportCredentials`, etc).
 
 ## Token Management
 

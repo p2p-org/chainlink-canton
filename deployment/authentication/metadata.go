@@ -55,8 +55,12 @@ func GetAuthorizationServerMetadata(ctx context.Context, authorizationServerURL 
 		return nil, fmt.Errorf("unmarshalling response body: %w", err)
 	}
 
-	// Validate that the response contains the authorization server URL as an Issuer
-	if metadata.Issuer != authorizationServerURL {
+	// Validate that the response contains the authorization server URL as an Issuer.
+	// Normalize a single trailing slash on both sides before comparing: RFC 8414 strips it when
+	// building the well-known URL, and some authorization servers (notably Auth0) always report
+	// the issuer with a trailing slash regardless of how the base URL was supplied. Without this,
+	// a base URL that differs only by a trailing slash would spuriously fail the issuer check.
+	if strings.TrimSuffix(metadata.Issuer, "/") != strings.TrimSuffix(authorizationServerURL, "/") {
 		return nil, fmt.Errorf("metadata: unexpected issuer: %s", metadata.Issuer)
 	}
 

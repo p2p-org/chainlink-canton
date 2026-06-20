@@ -47,6 +47,12 @@ type AuthConfig struct {
 
 	// ClientSecret is the OAuth2 client secret. Required for clientCredentials only.
 	ClientSecret string `toml:"client_secret,omitempty" validate:"required_if=Type clientCredentials,excluded_unless=Type clientCredentials"`
+
+	// Audience is the OAuth2 audience identifying the resource server (API) the token is for.
+	// Sent to the authorization server so the issued token carries the matching "aud" claim.
+	// Required by some providers (notably Auth0) — for Canton this is typically
+	// "https://canton.network.global". Optional and only used for clientCredentials and authorizationCode.
+	Audience string `toml:"audience,omitempty" validate:"excluded_if=Type static,excluded_if=Type insecureStatic"`
 }
 
 func (a *AuthConfig) Validate() error {
@@ -89,14 +95,24 @@ func (a *AuthConfig) NewProvider(ctx context.Context) (authentication.Provider, 
 			return nil, fmt.Errorf("clientCredentials auth requires auth_url, client_id, and client_secret")
 		}
 
-		return clientcredentials.NewDiscoveryProvider(ctx, a.AuthURL, a.ClientID, a.ClientSecret)
+		var opts []clientcredentials.ProviderOption
+		if a.Audience != "" {
+			opts = append(opts, clientcredentials.WithAudience(a.Audience))
+		}
+
+		return clientcredentials.NewDiscoveryProvider(ctx, a.AuthURL, a.ClientID, a.ClientSecret, opts...)
 
 	case AuthTypeAuthorizationCode:
 		if a.AuthURL == "" || a.ClientID == "" {
 			return nil, fmt.Errorf("authorizationCode auth requires auth_url and client_id")
 		}
 
-		return authorizationcode.NewDiscoveryProvider(ctx, a.AuthURL, a.ClientID)
+		var opts []authorizationcode.ProviderOption
+		if a.Audience != "" {
+			opts = append(opts, authorizationcode.WithAudience(a.Audience))
+		}
+
+		return authorizationcode.NewDiscoveryProvider(ctx, a.AuthURL, a.ClientID, opts...)
 
 	default:
 		return nil, fmt.Errorf("unsupported auth type: %q (expected static, insecureStatic, clientCredentials, or authorizationCode)", authType)

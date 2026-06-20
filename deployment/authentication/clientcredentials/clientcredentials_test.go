@@ -136,6 +136,84 @@ func TestNewProvider_UsesOptionsAndTokenSource(t *testing.T) {
 	require.Equal(t, "test-access-token", token.AccessToken)
 }
 
+// newAudienceCapturingServer returns a token server that records the "audience" parameter of the
+// token request body on the returned channel and responds with a valid token.
+func newAudienceCapturingServer(t *testing.T) (*httptest.Server, <-chan string) {
+	t.Helper()
+
+	gotAudience := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+
+			return
+		}
+		values, err := url.ParseQuery(string(body))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+
+			return
+		}
+		gotAudience <- values.Get("audience")
+
+		payload, err := json.Marshal(tokenResponse{AccessToken: "test-access-token", TokenType: "Bearer", ExpiresIn: 3600})
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	t.Cleanup(server.Close)
+
+	return server, gotAudience
+}
+
+// TestNewProvider_Audience verifies that WithAudience controls whether the "audience" parameter is
+// sent in the token request body.
+func TestNewProvider_Audience(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		options      []ProviderOption
+		wantAudience string
+	}{
+		{
+			name:         "sent when configured",
+			options:      []ProviderOption{WithAudience("https://canton.network.global")},
+			wantAudience: "https://canton.network.global",
+		},
+		{
+			name:         "omitted when unset",
+			options:      nil,
+			wantAudience: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server, gotAudience := newAudienceCapturingServer(t)
+
+			options := append([]ProviderOption{
+				WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})),
+			}, tt.options...)
+
+			provider, err := NewProvider(t.Context(), server.URL, "client-id", "client-secret", options...)
+			require.NoError(t, err)
+
+			_, err = provider.TokenSource().Token()
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantAudience, <-gotAudience)
+		})
+	}
+}
+
 // TestNewDiscoveryProvider_UsesMetadataTokenEndpoint verifies that discovery metadata is fetched correctly and the token endpoint is used.
 func TestNewDiscoveryProvider_UsesMetadataTokenEndpoint(t *testing.T) {
 	t.Parallel()

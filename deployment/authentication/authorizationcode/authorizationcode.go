@@ -39,6 +39,7 @@ type Provider struct {
 
 type authorizationCodeProviderConfig struct {
 	scopes               []string
+	audience             string
 	transportCredentials credentials.TransportCredentials
 	callbackURL          string
 	openBrowser          bool
@@ -72,6 +73,21 @@ type ProviderOption func(*authorizationCodeProviderConfig)
 func WithScopes(scopes ...string) ProviderOption {
 	return func(config *authorizationCodeProviderConfig) {
 		config.scopes = scopes
+	}
+}
+
+// WithAudience configures the Provider to request access tokens for the given audience.
+// The audience is sent as the "audience" parameter on the authorization request, identifying the
+// resource server (API) the token is intended for. This is required by some authorization servers
+// (notably Auth0) to issue a token with the correct "aud" claim — for Canton this is typically
+// "https://canton.network.global". When empty (the default), no audience parameter is sent.
+//
+// Example:
+//
+//	WithAudience("https://canton.network.global")
+func WithAudience(audience string) ProviderOption {
+	return func(config *authorizationCodeProviderConfig) {
+		config.audience = audience
 	}
 }
 
@@ -195,7 +211,13 @@ func NewProvider(ctx context.Context, authURL, tokenURL, clientID string, option
 
 	// Use built-in S256ChallengeOption for PKCE
 	verifier := oauth2.GenerateVerifier()
-	authCodeURL := oauthCfg.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
+	authCodeOpts := []oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier)}
+	if cfg.audience != "" {
+		// Authorization servers such as Auth0 require the audience on the authorization request
+		// to mint a token whose "aud" claim matches the Canton ledger API.
+		authCodeOpts = append(authCodeOpts, oauth2.SetAuthURLParam("audience", cfg.audience))
+	}
+	authCodeURL := oauthCfg.AuthCodeURL(state, authCodeOpts...)
 
 	callbackChan := make(chan *oauth2.Token)
 

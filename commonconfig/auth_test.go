@@ -146,6 +146,19 @@ func TestAuthConfig_Validate(t *testing.T) {
 			wantErr: true,
 		},
 
+		{
+			name: "clientCredentials_with_audience",
+			config: AuthConfig{
+				Type:         AuthTypeClientCredentials,
+				UserID:       "user-1",
+				AuthURL:      "https://auth.example.com/",
+				ClientID:     "client-id",
+				ClientSecret: "client-secret",
+				Audience:     "https://canton.network.global",
+			},
+			wantErr: false,
+		},
+
 		// --- authorizationCode: Type, UserID, AuthURL, ClientID required; ClientSecret must be unset (excluded_unless clientCredentials) ---
 		{
 			name: "authorizationCode_valid",
@@ -192,6 +205,28 @@ func TestAuthConfig_Validate(t *testing.T) {
 				AuthURL:      "https://auth.example.com/",
 				ClientID:     "client-id",
 				ClientSecret: "must-not-set",
+			},
+			wantErr: true,
+		},
+		{
+			name: "authorizationCode_with_audience",
+			config: AuthConfig{
+				Type:     AuthTypeAuthorizationCode,
+				UserID:   "user-1",
+				AuthURL:  "https://auth.example.com/",
+				ClientID: "client-id",
+				Audience: "https://canton.network.global",
+			},
+			wantErr: false,
+		},
+
+		// --- audience must not be set for static auth schemes ---
+		{
+			name: "static_with_audience_rejected",
+			config: AuthConfig{
+				Type:     AuthTypeStatic,
+				JWT:      validJWT,
+				Audience: "https://canton.network.global",
 			},
 			wantErr: true,
 		},

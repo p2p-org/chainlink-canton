@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net/url"
 
 	"github.com/smartcontractkit/chainlink-deployments-framework/chain/canton/provider/authentication"
 	"golang.org/x/oauth2"
@@ -32,6 +33,7 @@ type Provider struct {
 
 type clientCredentialsProviderConfig struct {
 	scopes               []string
+	audience             string
 	transportCredentials credentials.TransportCredentials
 }
 
@@ -60,6 +62,21 @@ type ProviderOption func(*clientCredentialsProviderConfig)
 func WithScopes(scopes ...string) ProviderOption {
 	return func(config *clientCredentialsProviderConfig) {
 		config.scopes = scopes
+	}
+}
+
+// WithAudience configures the Provider to request access tokens for the given audience.
+// The audience is sent as the "audience" parameter in the token request body, identifying the
+// resource server (API) the token is intended for. This is required by some authorization servers
+// (notably Auth0) to issue a token with the correct "aud" claim — for Canton this is typically
+// "https://canton.network.global". When empty (the default), no audience parameter is sent.
+//
+// Example:
+//
+//	WithAudience("https://canton.network.global")
+func WithAudience(audience string) ProviderOption {
+	return func(config *clientCredentialsProviderConfig) {
+		config.audience = audience
 	}
 }
 
@@ -144,6 +161,11 @@ func NewProvider(ctx context.Context, tokenURL, clientID, clientSecret string, o
 		ClientSecret: clientSecret,
 		TokenURL:     tokenURL,
 		Scopes:       cfg.scopes,
+	}
+	if cfg.audience != "" {
+		// Sent as an extra parameter in the token request body. Authorization servers such as
+		// Auth0 require this to mint a token whose "aud" claim matches the Canton ledger API.
+		oauthCfg.EndpointParams = url.Values{"audience": {cfg.audience}}
 	}
 
 	refreshCtx := context.WithoutCancel(ctx)
