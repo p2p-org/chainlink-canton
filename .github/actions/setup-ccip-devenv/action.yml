@@ -44,20 +44,20 @@ runs:
   steps:
     - name: Free up disk space
       if: inputs.free-disk-space == 'true'
-      uses: smartcontractkit/.github/actions/free-disk-space@free-disk-space/v1
+      uses: smartcontractkit/.github/actions/free-disk-space@ca71236c9f9e1358597795ef7d433dd3d3df8dfb # free-disk-space/v1
 
     - name: Enable S3 Cache for Self-Hosted Runners
       uses: runs-on/action@cd2b598b0515d39d78c38a02d529db87d2196d1e # v2.0.3
 
     - name: Check out chainlink-canton
-      uses: actions/checkout@v6
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
         repository: smartcontractkit/chainlink-canton
         path: ${{ inputs.canton-path }}
         ref: ${{ inputs.canton-ref != '' && inputs.canton-ref || github.sha }}
 
     - name: Check out chainlink-ccv
-      uses: actions/checkout@v6
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
         repository: smartcontractkit/chainlink-ccv
         path: ${{ inputs.ccv-path }}
@@ -78,7 +78,7 @@ runs:
         registries: ${{ inputs.jd-registry }}
 
     - name: Install Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
       with:
         cache: true
         go-version-file: ${{ inputs.canton-path }}/go.mod
