@@ -4,7 +4,7 @@ go 1.26.2
 
 replace github.com/smartcontractkit/chainlink-canton/party-ceremony => ../
 
-replace github.com/fbsobreira/gotron-sdk => github.com/smartcontractkit/chainlink-tron/relayer/gotron-sdk v0.0.5-0.20251014120029-d73d15cc23f7
+replace github.com/fbsobreira/gotron-sdk => github.com/smartcontractkit/chainlink-tron/relayer/gotron-sdk v0.0.6
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.42.0
