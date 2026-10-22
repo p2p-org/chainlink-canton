@@ -318,7 +318,7 @@ require (
 	github.com/zksync-sdk/zksync2-go v1.1.1-0.20250620124214-2c742ee399c6 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.dedis.ch/kyber/v3 v3.1.0 // indirect
-	go.mongodb.org/mongo-driver v1.17.2 // indirect
+	go.mongodb.org/mongo-driver v1.17.7 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0 // indirect
