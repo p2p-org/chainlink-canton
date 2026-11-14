@@ -17,7 +17,7 @@ require (
 	github.com/smartcontractkit/chainlink-deployments-framework v0.111.0
 	github.com/smartcontractkit/chainlink-testing-framework/framework v0.16.5
 	github.com/smartcontractkit/freeport v0.1.3-0.20250828155247-add56fa28aad
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.42.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
@@ -79,7 +79,7 @@ require (
 	github.com/gagliardetto/solana-go v1.13.0 // indirect
 	github.com/gagliardetto/treeout v0.1.4 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
@@ -163,12 +163,14 @@ require (
 	go.mongodb.org/mongo-driver v1.17.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.65.0 // indirect
-	go.opentelemetry.io/otel v1.44.0 // indirect
-	go.opentelemetry.io/otel/metric v1.44.0 // indirect
-	go.opentelemetry.io/otel/trace v1.44.0 // indirect
+	go.opentelemetry.io/otel v1.47.0 // indirect
+	go.opentelemetry.io/otel/log v1.47.0 // indirect
+	go.opentelemetry.io/otel/metric v1.47.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/ratelimit v0.3.1 // indirect
 	go.uber.org/zap v1.28.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/net v0.55.0 // indirect
